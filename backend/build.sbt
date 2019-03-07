@@ -1,12 +1,12 @@
 import sbt.Keys._
 
 scalaVersion := "2.12.4"
-name         := "catitu-backend"
+name         := "morbid-backend"
 version      := "v1.0-SNAPSHOT"
 
 PlayKeys.devSettings := Seq(
   "app.env"     -> "test",
-  "app.shared"  -> "/opt/catitu/backend/shared",
+  "app.shared"  -> "/opt/morbid/backend/shared",
   "play.server.http.port" -> "9004"
 )
 
