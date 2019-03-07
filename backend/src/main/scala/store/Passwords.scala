@@ -45,6 +45,5 @@ class DatabasePasswords (services: Services, db: Database, tokens: TokenGenerato
         token     = request.token
       )
     }
-
   }
 }

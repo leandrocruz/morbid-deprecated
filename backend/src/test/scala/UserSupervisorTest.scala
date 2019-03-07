@@ -10,7 +10,6 @@ import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, FlatSpecLike, Match
 import services.TokenGenerator
 import store.{Passwords, Stores, Users, UsersSupervisor}
 
-import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -34,9 +33,9 @@ class UserSupervisorTest extends TestKit(ActorSystem("UserSupervisorTest", AkkaT
     val passwords = mock[Passwords]
     val stores    = mock[Stores]
 
-    (stores.users     _)  .expects()      .returning(users)                   .once()
-    (stores.passwords _)  .expects()      .returning(passwords)               .once()
-    (users.byId       _)  .expects(1) .returning(Future.successful(None)) .once()
+    (stores.users     _)  .expects()      .returning(users)             .once()
+    (stores.passwords _)  .expects()      .returning(passwords)         .once()
+    (users.byId       _)  .expects(1) .returning(None.successful()) .once()
 
     val ref = system.actorOf(UsersSupervisor.props(services, tokens, stores), "users1")
 
@@ -55,9 +54,9 @@ class UserSupervisorTest extends TestKit(ActorSystem("UserSupervisorTest", AkkaT
     val stores    = mock[Stores]
     val user      = User(1, 1, new Date(), None, active = true, "username", "email", "type", None)
 
-    (stores.users     _)  .expects()      .returning(users)                         .once()
-    (stores.passwords _)  .expects()      .returning(passwords)                     .once()
-    (users.byId       _)  .expects(1) .returning(Future.successful(Some(user))) .once()
+    (stores.users     _)  .expects()      .returning(users)                   .once()
+    (stores.passwords _)  .expects()      .returning(passwords)               .once()
+    (users.byId       _)  .expects(1) .returning(Some(user).successful()) .once()
 
     val ref = system.actorOf(UsersSupervisor.props(services, tokens, stores), "users2")
 
@@ -79,11 +78,11 @@ class UserSupervisorTest extends TestKit(ActorSystem("UserSupervisorTest", AkkaT
     val password   = Password(1, 1, now, null, "sha256", "rnd16", "rnd32")
     val pwdRequest = CreatePasswordRequest(user.id, "sha256", "rnd16".sha256(), "rnd32")
 
-    (stores.users     _)  .expects()                .returning(users)                       .once()
-    (stores.passwords _)  .expects()                .returning(passwords)                   .once()
-    (users.byUsername _)  .expects("username")  .returning(Future.successful(None))     .once()
-    (users.create     _)  .expects(request)         .returning(Future.successful(user))     .once()
-    (passwords.create _)  .expects(pwdRequest)      .returning(Future.successful(password)) .once()
+    (stores.users     _)  .expects()                .returning(users)                 .once()
+    (stores.passwords _)  .expects()                .returning(passwords)             .once()
+    (users.byUsername _)  .expects("username")  .returning(None.successful())     .once()
+    (users.create     _)  .expects(request)         .returning(user.successful())     .once()
+    (passwords.create _)  .expects(pwdRequest)      .returning(password.successful()) .once()
 
     services.secrets().generate _ expects 16 returning "rnd16" once()
     services.rnd().generate     _ expects 32 returning "rnd32" once()
