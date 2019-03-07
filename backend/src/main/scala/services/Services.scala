@@ -9,24 +9,30 @@ import play.api.{Configuration, Environment}
 import scala.concurrent.ExecutionContext
 
 trait Services {
-  def actorSystem(): ActorSystem
-  def clock()      : Clock
-  def conf()       : Configuration
-  def env()        : Environment
   def ec()         : ExecutionContext
+  def rnd()        : Random
+  def env()        : Environment
+  def conf()       : Configuration
+  def clock()      : Clock
+  def secrets()    : SecretValidator
+  def actorSystem(): ActorSystem
 }
 
 @Singleton
 class BasicServices @Inject() (
-  theActorSystem      : ActorSystem,
-  theClock            : Clock,
-  theConf             : Configuration,
-  theEnvironment      : Environment,
-  theExecutionContext : ExecutionContext) extends Services {
+  executionContext : ExecutionContext,
+  random           : Random,
+  environment      : Environment,
+  config           : Configuration,
+  theClock         : Clock,
+  secretValidator  : SecretValidator,
+  system           : ActorSystem) extends Services {
 
-  override def actorSystem() : ActorSystem      = theActorSystem
+  override def ec()          : ExecutionContext = executionContext
+  override def rnd()         : Random           = random
+  override def env()         : Environment      = environment
+  override def conf()        : Configuration    = config
   override def clock()       : Clock            = theClock
-  override def conf()        : Configuration    = theConf
-  override def env()         : Environment      = theEnvironment
-  override def ec()          : ExecutionContext = theExecutionContext
+  override def secrets()     : SecretValidator  = secretValidator
+  override def actorSystem() : ActorSystem      = system
 }

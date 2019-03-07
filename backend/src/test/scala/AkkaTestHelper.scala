@@ -4,8 +4,8 @@ import java.util.Date
 import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
 import org.scalamock.scalatest.MockFactory
-import play.api.Configuration
-import services.{BasicServices, Services}
+import play.api.{Configuration, Environment}
+import services.{BasicServices, Random, SecretValidator, Services}
 
 object AkkaTestHelper {
   def simpleConfig() = ConfigFactory.parseString(
@@ -36,7 +36,14 @@ trait AkkaTestHelper extends MockFactory {
         |  }
         |}
       """.stripMargin)
-    new BasicServices(system, newClock(), Configuration(conf), null, system.dispatcher)
-  }
 
+    new BasicServices(
+      random           = mock[Random],
+      environment      = mock[Environment],
+      secretValidator  = mock[SecretValidator],
+      theClock         = newClock(),
+      config           = Configuration(conf),
+      executionContext = system.dispatcher,
+      system           = system)
+  }
 }

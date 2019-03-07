@@ -187,8 +187,13 @@ class UsersSupervisor (
   def validatePassword(it: CreateUserRequest): Future[Try[String]] = Future.successful {
     it
       .password
-      .map(pwd => if(Passwords.validate(pwd)) Success(pwd) else Failure(new Exception("Weak Password")))
-      .getOrElse(Success(Passwords.generate(16)))
+      .map { pwd =>
+        if(services.secrets().validate(pwd)) Success(pwd) else Failure(new Exception("Weak Password"))
+      }
+      .getOrElse {
+        val generated = services.secrets().generate(16)
+        Success(generated)
+      }
   }
 
   def create(req: CreateUserRequest, same: Option[User], password: Try[String]): Future[Any] =
