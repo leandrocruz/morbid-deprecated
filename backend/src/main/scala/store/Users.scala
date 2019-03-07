@@ -124,23 +124,23 @@ class DatabaseUsers (services: Services, db: Database, tokens: TokenGenerator) e
 
 object UsersSupervisor {
   def props(
-    services       : Services,
-    tokens         : TokenGenerator,
-    accountManager : Stores) = Props(classOf[UsersSupervisor], services, tokens, accountManager)
+    services : Services,
+    tokens   : TokenGenerator,
+    stores   : Stores) = Props(classOf[UsersSupervisor], services, tokens, stores)
 }
 
 case object Refresh
 case class DecommissionSupervisor(user: User)
 
 class UsersSupervisor (
-  services       : Services,
-  tokens         : TokenGenerator,
-  accountManager : Stores) extends Actor with ActorLogging with ActorUtils with Timers {
+  services : Services,
+  tokens   : TokenGenerator,
+  stores   : Stores) extends Actor with ActorLogging with ActorUtils with Timers {
 
   implicit val ec = services.ec()
 
-  val users     = accountManager.users()
-  val passwords = accountManager.passwords()
+  val users     = stores.users()
+  val passwords = stores.passwords()
 
   val byUsername = mutable.Map[String, ActorRef]()
   val byToken    = mutable.Map[String, ActorRef]()
@@ -166,17 +166,18 @@ class UsersSupervisor (
     op match {
       case Some(user) if !byId.contains(user.id) =>
         log.info(s"Creating Supervisor for ${user.id}/${user.password.map(_.token)}")
-        val ref = context.actorOf(Props(classOf[SingleUserSupervisor], user, services, tokens, accountManager), s"user-${user.id}")
+        val ref = context.actorOf(Props(classOf[SingleUserSupervisor], user, services, tokens, stores), s"user-${user.id}")
         addToCache(user, ref)
       case _ => unknownUser
     }
+
 
   def fw(msg: Any, opt: Option[ActorRef], retrieve: => Future[Option[User]]) =
     opt match {
       case Some(ref) => ref forward msg
       case None      =>
         val replyTo = sender()
-        retrieve
+       retrieve
           .map     { registerSupervisor                       }
           .map     { ref => ref.tell(msg, replyTo)            }
           .recover { case NonFatal(e) => replyTo ! Failure(e) }
