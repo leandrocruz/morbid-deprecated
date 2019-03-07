@@ -203,7 +203,6 @@ class UsersSupervisor (
       case (_, Failure(e))      => Failure(e).successful()
       case (_, Success(strong)) =>
         val token  = services.rnd().generate(32)
-
         for {
           u <- users     create req
           p <- passwords create CreatePasswordRequest(u.id, "sha256", strong.sha256(), token)
