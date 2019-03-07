@@ -1,0 +1,8 @@
+logs
+.idea
+project/project
+project/target
+target
+*~
+*.pyc
+tmp
