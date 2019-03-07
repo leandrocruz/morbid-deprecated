@@ -58,7 +58,7 @@ case class Token(
 case class AuthenticateRequest(username: String, password: String)
 case class CreateAccountRequest(name: String)
 case class CreateUserRequest(account: Long, username: String, password: Option[String], email: String, `type`: String)
-case class CreatePasswordRequest(user: Long, method: String, password: String)
+case class CreatePasswordRequest(user: Long, method: String, password: String, token: String)
 case class ResetPasswordRequest(username: Option[String], email: Option[String])
 
 case class ServerTime(time: Date)

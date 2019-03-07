@@ -5,6 +5,7 @@ import java.util.Date
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}
 import domain._
+import domain.utils._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, FlatSpecLike, Matchers}
 import services.TokenGenerator
 import store.{Passwords, Stores, Users, UsersSupervisor}
@@ -75,8 +76,8 @@ class UserSupervisorTest extends TestKit(ActorSystem("UserSupervisorTest", AkkaT
     val now        = Date.from(services.clock().instant())
     val user       = User(1, 1, now, None, active = true, "username", "email", "type", None)
     val request    = CreateUserRequest(user.account, user.username, None, user.email, user.`type`)
-    val password   = Password(1, 1, now, null, "sha256", "rnd16", "any")
-    val pwdRequest = CreatePasswordRequest(user.id, "sha256", "rnd16")
+    val password   = Password(1, 1, now, null, "sha256", "rnd16", "rnd32")
+    val pwdRequest = CreatePasswordRequest(user.id, "sha256", "rnd16".sha256(), "rnd32")
 
     (stores.users     _)  .expects()                .returning(users)                       .once()
     (stores.passwords _)  .expects()                .returning(passwords)                   .once()
@@ -85,6 +86,7 @@ class UserSupervisorTest extends TestKit(ActorSystem("UserSupervisorTest", AkkaT
     (passwords.create _)  .expects(pwdRequest)      .returning(Future.successful(password)) .once()
 
     services.secrets().generate _ expects 16 returning "rnd16" once()
+    services.rnd().generate     _ expects 32 returning "rnd32" once()
 
     val ref = system.actorOf(UsersSupervisor.props(services, tokens, stores), "users3")
     within(1 minute) {
