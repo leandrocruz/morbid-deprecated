@@ -1,15 +1,11 @@
 package domain
 
-import java.math.BigInteger
-import java.security.MessageDigest
 import java.sql.Timestamp
 import java.util.Date
 
 import play.api.libs.json.Json
 import play.api.libs.json.Reads.dateReads
 import play.api.libs.json.Writes.dateWrites
-
-import scala.concurrent.Future
 
 case object UnknownUser
 case class  GetByToken(token: String)
@@ -115,24 +111,4 @@ object collections {
   val accounts = TableQuery[AccountTable]
   val users    = TableQuery[UserTable]
   val secrets  = TableQuery[SecretTable]
-}
-
-object utils {
-  implicit class HashUtils(input: String) {
-    def sha256() =
-      String.format("%032x", new BigInteger(1, MessageDigest.getInstance("SHA-256").digest(input.getBytes("UTF-8"))))
-  }
-
-  implicit class FutureUtils[T](obj: T) {
-    def successful() = Future.successful(obj)
-  }
-
-//  implicit class UserUtils(user: User) {
-//    def pwd(): Option[Password] = user
-//      .passwords
-//      .filter(_.deleted.isEmpty)
-//      .sortBy(_.created)
-//      .headOption
-//  }
-
 }

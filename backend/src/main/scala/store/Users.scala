@@ -7,7 +7,7 @@ import java.util.Date
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, ReceiveTimeout, Timers}
 import domain._
 import domain.collections._
-import domain.utils._
+import xingu.commons.utils._
 import org.slf4j.LoggerFactory
 import play.api.Configuration
 import services.{AppServices, TokenGenerator}
