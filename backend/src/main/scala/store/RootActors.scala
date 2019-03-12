@@ -2,7 +2,7 @@ package store
 
 import akka.actor.ActorRef
 import javax.inject.{Inject, Singleton}
-import services.{Services, TokenGenerator}
+import services.{AppServices, TokenGenerator}
 
 trait RootActors {
   def users(): ActorRef
@@ -11,7 +11,7 @@ trait RootActors {
 
 @Singleton
 class RootActorsImpl @Inject() (
-  services       : Services,
+  services       : AppServices,
   tokens         : TokenGenerator,
   accountManager : Stores) extends RootActors {
 

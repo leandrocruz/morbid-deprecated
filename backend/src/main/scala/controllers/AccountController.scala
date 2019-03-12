@@ -3,11 +3,11 @@ package controllers
 import domain._
 import domain.json._
 import javax.inject.Inject
-import services.Services
+import services.AppServices
 import store.Stores
 
 class AccountController @Inject()(
-  services : Services,
+  services : AppServices,
   stores   : Stores) extends ControllerSupport (services) {
 
   def byId (it: Long)= Action.async {

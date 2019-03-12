@@ -1,19 +1,20 @@
 package controllers
 
-import akka.Inquire._
 import akka.actor.ActorRef
 import domain._
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
 import play.api.mvc.{InjectedController, Request, Result}
-import services.Services
+import services.AppServices
 import store.ObjectStore
 
 import scala.concurrent.Future
 import scala.util.Failure
 import scala.util.control.NonFatal
 
-class ControllerSupport (services: Services) extends InjectedController {
+import xingu.commons.play.akka.Inquire.inquire
+
+class ControllerSupport (services: AppServices) extends InjectedController {
 
   implicit val ec = services.ec()
   implicit val system = services.actorSystem()

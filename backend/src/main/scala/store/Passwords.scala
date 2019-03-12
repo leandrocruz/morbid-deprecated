@@ -6,14 +6,14 @@ import java.util.Date
 import domain._
 import domain.collections.secrets
 import org.slf4j.LoggerFactory
-import services.{Services, TokenGenerator}
+import services.{AppServices, TokenGenerator}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Future
 
 trait Passwords extends ObjectStore[Password, CreatePasswordRequest] {}
 
-class DatabasePasswords (services: Services, db: Database, tokens: TokenGenerator) extends Passwords {
+class DatabasePasswords (services: AppServices, db: Database, tokens: TokenGenerator) extends Passwords {
 
   implicit val ec = services.ec()
 

@@ -1,7 +1,7 @@
 package store
 
 import javax.inject.{Inject, Singleton}
-import services.{Services, TokenGenerator}
+import services.{AppServices, TokenGenerator}
 import slick.jdbc.PostgresProfile
 import slick.jdbc.PostgresProfile.api._
 
@@ -21,7 +21,7 @@ trait Stores {
 
 @Singleton
 class StoresImpl @Inject()(
-  services: Services,
+  services: AppServices,
   tokens  : TokenGenerator) extends Stores {
 
   private val db           : PostgresProfile.backend.Database = Database.forConfig("database")

@@ -1,20 +1,20 @@
 package controllers
 
-import akka.Inquire._
 import domain._
 import domain.json._
 import javax.inject.Inject
 import play.api.libs.json._
-import services.Services
+import services.AppServices
 import shapeless.TypeCase
 import store.{RootActors, Stores}
+import xingu.commons.play.akka.Inquire.inquire
 
 import scala.concurrent.Future
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
 
 class UserController @Inject()(
-  services : Services,
+  services : AppServices,
   actors   : RootActors,
   stores   : Stores) extends ControllerSupport (services) {
 

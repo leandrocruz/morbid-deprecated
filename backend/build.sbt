@@ -25,6 +25,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.slick" %% "slick"          % "3.2.1",
   "com.typesafe.slick" %% "slick-hikaricp" % "3.2.1",
   "org.postgresql"     %  "postgresql"     % "42.1.4",
+  "xingu" %% "xingu-scala-play" % "v1.0-SNAPSHOT",
   "com.typesafe.akka"      %% "akka-testkit"                % "2.5.21" % Test,
   "org.scalatestplus.play" %% "scalatestplus-play"          % "3.1.0"  % Test,
   "org.scalamock"          %% "scalamock-scalatest-support" % "3.5.0"  % Test

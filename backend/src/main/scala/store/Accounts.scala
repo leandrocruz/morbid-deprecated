@@ -6,15 +6,14 @@ import java.util.Date
 import akka.actor.{Actor, ActorLogging, Props}
 import domain.collections.accounts
 import domain.{Account, AccountTable, CreateAccountRequest, collections}
-import services.Services
+import services.AppServices
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Future
-import scala.util._
 
 trait Accounts extends ObjectStore[Account, CreateAccountRequest] {}
 
-class DatabaseAccounts (services: Services, db: Database) extends Accounts {
+class DatabaseAccounts (services: AppServices, db: Database) extends Accounts {
 
   implicit val ec = services.ec()
 
@@ -62,10 +61,10 @@ class DatabaseAccounts (services: Services, db: Database) extends Accounts {
 }
 
 object AccountManagerSupervisor {
-  def props(services: Services) = Props(classOf[AccountManagerSupervisor], services)
+  def props(services: AppServices) = Props(classOf[AccountManagerSupervisor], services)
 }
 
-class AccountManagerSupervisor (services: Services) extends Actor with ActorLogging {
+class AccountManagerSupervisor (services: AppServices) extends Actor with ActorLogging {
   override def receive = {
     case "hi" => sender ! "hallo"
   }

@@ -5,34 +5,25 @@ import java.time.Clock
 import akka.actor.ActorSystem
 import javax.inject.{Inject, Singleton}
 import play.api.{Configuration, Environment}
+import xingu.commons.play.services.{BasicServices, Services}
 
 import scala.concurrent.ExecutionContext
 
-trait Services {
-  def ec()         : ExecutionContext
+trait AppServices extends Services {
   def rnd()        : Random
-  def env()        : Environment
-  def conf()       : Configuration
-  def clock()      : Clock
   def secrets()    : SecretValidator
-  def actorSystem(): ActorSystem
 }
 
 @Singleton
-class BasicServices @Inject() (
-  executionContext : ExecutionContext,
-  random           : Random,
-  environment      : Environment,
-  config           : Configuration,
-  theClock         : Clock,
-  secretValidator  : SecretValidator,
-  system           : ActorSystem) extends Services {
+class AppServicesImpl @Inject() (
+  ec        : ExecutionContext,
+  random    : Random,
+  env       : Environment,
+  config    : Configuration,
+  clock     : Clock,
+  validator : SecretValidator,
+  system    : ActorSystem) extends BasicServices(ec, env, config, clock, system) with AppServices {
 
-  override def ec()          : ExecutionContext = executionContext
-  override def rnd()         : Random           = random
-  override def env()         : Environment      = environment
-  override def conf()        : Configuration    = config
-  override def clock()       : Clock            = theClock
-  override def secrets()     : SecretValidator  = secretValidator
-  override def actorSystem() : ActorSystem      = system
+  override def rnd()     : Random           = random
+  override def secrets() : SecretValidator  = validator
 }

@@ -6,13 +6,13 @@ import java.util.Date
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, ReceiveTimeout, Timers}
 import domain._
-import domain.utils._
 import domain.collections._
+import domain.utils._
 import org.slf4j.LoggerFactory
 import play.api.Configuration
-import services.{Services, TokenGenerator}
+import services.{AppServices, TokenGenerator}
 import slick.jdbc.PostgresProfile.api._
-
+import xingu.commons.play.akka.ActorUtils
 
 import scala.collection.mutable
 import scala.concurrent.Future
@@ -26,7 +26,7 @@ trait Users extends ObjectStore[User, CreateUserRequest] {
   def byUsername(username: String) : Future[Option[User]]
 }
 
-class DatabaseUsers (services: Services, db: Database, tokens: TokenGenerator) extends Users {
+class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator) extends Users {
 
   type RowFilterParams = (UserTable, Rep[Option[SecretTable]]) // remove warning from intellij
 
@@ -125,7 +125,7 @@ class DatabaseUsers (services: Services, db: Database, tokens: TokenGenerator) e
 
 object UsersSupervisor {
   def props(
-    services : Services,
+    services : AppServices,
     tokens   : TokenGenerator,
     stores   : Stores) = Props(classOf[UsersSupervisor], services, tokens, stores)
 }
@@ -134,7 +134,7 @@ case object Refresh
 case class DecommissionSupervisor(user: User)
 
 class UsersSupervisor (
-  services : Services,
+  services : AppServices,
   tokens   : TokenGenerator,
   stores   : Stores) extends Actor with ActorLogging with ActorUtils with Timers {
 
@@ -248,7 +248,7 @@ class UnknownUserSupervisor extends Actor {
 
 class SingleUserSupervisor (
   user           : User,
-  services       : Services,
+  services       : AppServices,
   tokens         : TokenGenerator,
   accountManager : Stores) extends Actor with ActorLogging with ActorUtils {
 
