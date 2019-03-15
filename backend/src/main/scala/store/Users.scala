@@ -7,12 +7,12 @@ import java.util.Date
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, ReceiveTimeout, Timers}
 import domain._
 import domain.collections._
-import xingu.commons.utils._
 import org.slf4j.LoggerFactory
 import play.api.Configuration
 import services.{AppServices, TokenGenerator}
 import slick.jdbc.PostgresProfile.api._
-import xingu.commons.play.akka.ActorUtils
+import xingu.commons.play.akka.XinguActor
+import xingu.commons.utils._
 
 import scala.collection.mutable
 import scala.concurrent.Future
@@ -136,7 +136,7 @@ case class DecommissionSupervisor(user: User)
 class UsersSupervisor (
   services : AppServices,
   tokens   : TokenGenerator,
-  stores   : Stores) extends Actor with ActorLogging with ActorUtils with Timers {
+  stores   : Stores) extends Actor with ActorLogging with XinguActor with Timers {
 
   implicit val ec = services.ec()
 
@@ -250,7 +250,7 @@ class SingleUserSupervisor (
   user           : User,
   services       : AppServices,
   tokens         : TokenGenerator,
-  accountManager : Stores) extends Actor with ActorLogging with ActorUtils {
+  accountManager : Stores) extends Actor with ActorLogging with XinguActor {
 
   implicit val ec  = services.ec()
   val conf         = services.conf().get[Configuration] ("passwords")

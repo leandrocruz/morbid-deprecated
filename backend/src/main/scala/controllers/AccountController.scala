@@ -16,7 +16,7 @@ class AccountController @Inject()(
     }
   }
 
-  def create() = Action.async(parse.json) { req =>
-    createResourceDirectly[Account, CreateAccountRequest](req, stores.accounts())
+  def create() = Action.async(parse.json) { implicit r =>
+    createResourceDirectly[Account, CreateAccountRequest](stores.accounts())
   }
 }

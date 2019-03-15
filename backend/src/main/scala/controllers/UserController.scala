@@ -7,7 +7,7 @@ import play.api.libs.json._
 import services.AppServices
 import shapeless.TypeCase
 import store.{RootActors, Stores}
-import xingu.commons.play.akka.Inquire.inquire
+import xingu.commons.play.akka.utils._
 
 import scala.concurrent.Future
 import scala.util.control.NonFatal
@@ -20,8 +20,8 @@ class UserController @Inject()(
 
   val SuccessToken = TypeCase[Success[Token]]
 
-  def create() = Action.async(parse.json) { req =>
-    createResource[User, CreateUserRequest](req, actors.users())
+  def create() = Action.async(parse.json) { implicit r =>
+    createResource[User, CreateUserRequest](actors.users())
   }
 
   def byId(it: Long)   = Action.async {
@@ -43,7 +43,7 @@ class UserController @Inject()(
   }
 
   def login() = Action.async (parse.json) { implicit r =>
-    withRequest[AuthenticateRequest] { req =>
+    validateThen[AuthenticateRequest] { req =>
       inquire(actors.users()) { req } map {
         case UnknownUser      => NotFound
         case Failure(e)       => Forbidden(e.getMessage)
@@ -55,7 +55,7 @@ class UserController @Inject()(
   }
 
   def resetPassword() = Action.async(parse.json) { implicit r =>
-    withRequest[ResetPasswordRequest] {
+    validateThen[ResetPasswordRequest] {
       case ResetPasswordRequest(None, None) =>
         Future.successful(BadRequest)
       case req =>
