@@ -236,7 +236,7 @@ class UsersSupervisor (
     case it @ ResetPasswordRequest(Some(username), _) =>
       fw(it, byUsername.get(username), users.byUsername(username))
 
-    case it @ RefreshPasswordRequest(Some(username)) =>
+    case it @ RefreshUserRequest(Some(username)) =>
       fw(it, byUsername.get(username), users.byUsername(username))
 
     case any =>
@@ -294,13 +294,13 @@ class SingleUserSupervisor (
     Future.successful("ok")
   }
 
-  def refreshPasswordFor(username: String): Future[Any] = {
+  def refreshUser(username: String): Future[Any] = {
     context.parent ! DecommissionSupervisor(user)
     Future.successful("ok")
   }
 
   override def receive = {
-    case RefreshPasswordRequest(Some(username))  => to(sender) { refreshPasswordFor(username) }
+    case RefreshUserRequest(Some(username))  => to(sender) { refreshUser(username) }
     case ReceiveTimeout                          => context.parent ! DecommissionSupervisor(user)
     case AuthenticateRequest(_, password)        => sender ! authenticate(password)
     case GetByToken(_)                           => sender ! user

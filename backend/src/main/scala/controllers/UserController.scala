@@ -68,9 +68,9 @@ class UserController @Inject()(
     }
   }
 
-  def refreshPassword() = Action.async(parse.json) { implicit r =>
-    validateThen[RefreshPasswordRequest] {
-      case RefreshPasswordRequest(None) =>
+  def refreshUser() = Action.async(parse.json) { implicit r =>
+    validateThen[RefreshUserRequest] {
+      case RefreshUserRequest(None) =>
         Future.successful(BadRequest)
       case req =>
         inquire(actors.users()) { req } map {
