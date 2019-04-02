@@ -291,7 +291,7 @@ class SingleUserSupervisor (
   }
 
   override def receive = {
-    case Refresh                                 => context.parent ! DecommissionSupervisor(user)
+    case RefreshPasswordRequest                  => context.parent ! DecommissionSupervisor(user)
     case ReceiveTimeout                          => context.parent ! DecommissionSupervisor(user)
     case AuthenticateRequest(_, password)        => sender ! authenticate(password)
     case GetByToken(_)                           => sender ! user

@@ -56,6 +56,7 @@ case class CreateAccountRequest(name: String)
 case class CreateUserRequest(account: Long, username: String, password: Option[String], email: String, `type`: String)
 case class CreatePasswordRequest(user: Long, method: String, password: String, token: String)
 case class ResetPasswordRequest(username: Option[String], email: Option[String])
+case class RefreshPasswordRequest(username: Option[String], email: Option[String])
 
 case class ServerTime(time: Date)
 
@@ -72,6 +73,7 @@ object json {
   implicit val CreateAccountRequestReader = Json.reads[CreateAccountRequest]
   implicit val CreateUserRequestReader    = Json.reads[CreateUserRequest]
   implicit val ResetPasswordRequestReader = Json.reads[ResetPasswordRequest]
+  implicit val RefreshPasswordRequestReader = Json.reads[RefreshPasswordRequest]
 }
 
 import slick.jdbc.PostgresProfile.api._
