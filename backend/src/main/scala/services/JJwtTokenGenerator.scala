@@ -52,10 +52,10 @@ class JJwtTokenGenerator @Inject() (conf: Configuration, clock: Clock) extends T
     expiresAt foreach { at =>  jwt.setExpiration(at) }
 
     Token(
-      token = jwt.compact(),
-      issuer = issuer,
-      subject = subject,
-      issuedAt = issuedAt,
+      token     = jwt.compact(),
+      issuer    = issuer,
+      subject   = subject,
+      issuedAt  = issuedAt,
       expiresAt = expiresAt
     )
   }
