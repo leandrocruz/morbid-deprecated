@@ -250,7 +250,7 @@ class UsersSupervisor (
     case it @ GetByToken(token) =>
       fw(it, byToken.get(token), users.byToken(token))
 
-    case it @ AddPermissionRequest(userId, _, _) =>
+    case it @ AddPermission(userId, _) =>
       fw(it, byId.get(userId), users.byId(userId))
 
     case it @ AuthenticateRequest(username, _) =>
@@ -299,7 +299,7 @@ class SingleUserSupervisor (
     services.clock().instant().minus(daysAgo)
   }
 
-  def addPermissionFor(userId: Long, permissions: Option[List[String]]): Future[Future[List[Permission]]] = {
+  def addPermissionFor(userId: Long, permissions: Option[List[String]]) = {
     val permissionIssuer = Option(user.id)
     val target = accountManager.users().byId(userId)
 
@@ -315,12 +315,14 @@ class SingleUserSupervisor (
         }
 
         if(!valid) {
-          Future.failed(new Exception("User already have one of the given permissions."))
+          throw new Exception("User already have one of the given permissions.")
         } else {
           val request = AddPermissionRequest(userId = userId, permissions = permissions, createdBy = permissionIssuer)
           val perms = accountManager.permissions()
-          perms.create(request)
+          Success { perms.create(request) }
         }
+    } recover {
+      case e: Exception => Failure { e }
     }
   }
 
@@ -350,7 +352,7 @@ class SingleUserSupervisor (
 
   override def receive = {
     case Refresh                                 => println("refreshing")
-    case AddPermissionRequest(userId, perms, _)  => sender ! addPermissionFor(userId, perms)
+    case AddPermission(userId, perms)            => to(sender) { addPermissionFor(userId, perms) }
     case ReceiveTimeout                          => context.parent ! DecommissionSupervisor(user)
     case AuthenticateRequest(_, password)        => sender ! authenticate(password)
     case GetByToken(_)                           => sender ! user

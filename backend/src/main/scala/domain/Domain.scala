@@ -8,7 +8,7 @@ import play.api.libs.json.Reads.dateReads
 import play.api.libs.json.Writes.dateWrites
 
 case object UnknownUser
-case object UnknownPermission
+case class  AddPermission[T](userId: Long, permissions: Option[List[String]])
 case class  GetByToken(token: String)
 case class  GetById(id: Long)
 case class  CreateResource[T](request: T)
@@ -77,12 +77,15 @@ object json {
   implicit val CustomDateWrites           = dateWrites(format)
   implicit val CustomDateReads            = dateReads(format)
   implicit val ServerTimeWriter           = Json.writes[ServerTime]
+  implicit val AddPermissionRequestWriter = Json.writes[AddPermissionRequest]
+  implicit val AddPermissionWriter        = Json.writes[AddPermission[AddPermissionRequest]]
   implicit val AccountWriter              = Json.writes[Account]
   implicit val PasswordWriter             = Json.writes[Password]
   implicit val PermissionWriter           = Json.writes[Permission]
   implicit val UserWriter                 = Json.writes[User]
   implicit val TokenWriter                = Json.writes[Token]
   implicit val AddPermissionRequestReader = Json.reads[AddPermissionRequest]
+  implicit val AddPermissionReader        = Json.reads[AddPermission[AddPermissionRequest]]
   implicit val AuthenticateRequestReader  = Json.reads[AuthenticateRequest]
   implicit val CreateAccountRequestReader = Json.reads[CreateAccountRequest]
   implicit val CreateUserRequestReader    = Json.reads[CreateUserRequest]

@@ -4,6 +4,7 @@ import domain._
 import domain.json._
 import javax.inject.Inject
 import play.api.libs.json._
+import play.api.mvc.Request
 import services.AppServices
 import shapeless.TypeCase
 import store.{RootActors, Stores}
@@ -20,9 +21,17 @@ class UserController @Inject()(
 
   val SuccessToken = TypeCase[Success[Token]]
 
-  def addPermissionsFor() = Action.async(parse.json) {
-    implicit r =>
-      createResource[List[Permission], AddPermissionRequest](actors.users(), withPayload = false)
+  def addPermissionsFor() = Action.async(parse.json) { implicit r =>
+    validateThen[AddPermission[AddPermissionRequest]] { req =>
+      inquire(actors.users()) { req } map {
+        case UnknownUser => NotFound
+        case Failure(e)  => Forbidden(e.getMessage)
+        case _           => Ok
+      } recover {
+        case NonFatal(e) => log.error("", e); InternalServerError
+        case _           => InternalServerError("")
+      }
+    }
   }
 
   def create() = Action.async(parse.json) { implicit r =>
