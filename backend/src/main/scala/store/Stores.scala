@@ -14,9 +14,10 @@ trait ObjectStore[T, CREATE] {
 }
 
 trait Stores {
-  def accounts()  : Accounts
-  def users()     : Users
-  def passwords() : Passwords
+  def accounts()    : Accounts
+  def users()       : Users
+  def passwords()   : Passwords
+  def permissions() : Permissions
 }
 
 @Singleton
@@ -24,11 +25,13 @@ class StoresImpl @Inject()(
   services: AppServices,
   tokens  : TokenGenerator) extends Stores {
 
-  private val db           : PostgresProfile.backend.Database = Database.forConfig("database")
-  private val ACCOUNTS     : Accounts  = new DatabaseAccounts  (services, db)
-  private val USERS        : Users     = new DatabaseUsers     (services, db, tokens)
-  private val PASSWORDS    : Passwords = new DatabasePasswords (services, db, tokens)
-  override def accounts()  : Accounts  = ACCOUNTS
-  override def users()     : Users     = USERS
-  override def passwords() : Passwords = PASSWORDS
+  private  val db           : PostgresProfile.backend.Database = Database.forConfig("database")
+  private  val ACCOUNTS     : Accounts    = new DatabaseAccounts   (services, db)
+  private  val USERS        : Users       = new DatabaseUsers      (services, db, tokens)
+  private  val PASSWORDS    : Passwords   = new DatabasePasswords  (services, db, tokens)
+  private  val PERMISSIONS  : Permissions = new DatabasePermissions(services, db)
+  override def accounts()   : Accounts    = ACCOUNTS
+  override def users()      : Users       = USERS
+  override def passwords()  : Passwords   = PASSWORDS
+  override def permissions(): Permissions = PERMISSIONS
 }

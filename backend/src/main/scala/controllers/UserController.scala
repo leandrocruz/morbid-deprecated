@@ -20,6 +20,11 @@ class UserController @Inject()(
 
   val SuccessToken = TypeCase[Success[Token]]
 
+  def addPermissionsFor() = Action.async(parse.json) {
+    implicit r =>
+      createResource[List[Permission], AddPermissionRequest](actors.users(), withPayload = false)
+  }
+
   def create() = Action.async(parse.json) { implicit r =>
     createResource[User, CreateUserRequest](actors.users())
   }

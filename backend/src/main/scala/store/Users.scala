@@ -1,5 +1,6 @@
 package store
 
+import java.security.Permissions
 import java.sql.Timestamp
 import java.time.temporal.ChronoUnit
 import java.util.Date
@@ -15,7 +16,7 @@ import xingu.commons.play.akka.XinguActor
 import xingu.commons.utils._
 
 import scala.collection.mutable
-import scala.concurrent.Future
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.control.NonFatal
@@ -26,39 +27,67 @@ trait Users extends ObjectStore[User, CreateUserRequest] {
   def byUsername(username: String) : Future[Option[User]]
 }
 
-class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator) extends Users {
+class DatabaseUsers(services: AppServices, db: Database, tokens: TokenGenerator) extends Users {
 
-  type RowFilterParams = (UserTable, Rep[Option[SecretTable]]) // remove warning from intellij
+  type RowFilterParams = ((UserTable, Rep[Option[SecretTable]]), Rep[Option[PermissionTable]]) // remove warning from intellij
 
   implicit val ec = services.ec()
   val log = LoggerFactory.getLogger(getClass)
 
   def selectOne(rowFilter: RowFilterParams => Rep[Boolean]): Future[Option[User]] = {
     val query = for {
-      (user, secret) <- users joinLeft  secrets on { _.id === _.user } filter { rowFilter }
+      ((user, secret), permission) <- {
+        users joinLeft secrets on {
+          _.id === _.user
+        } joinLeft permissions on {
+          _._1.id === _.user
+        } filter {
+          rowFilter
+        }
+      }
     } yield (
-      (user.id, user.account, user.created, user.deleted, user.active, user.username, user.email   , user.`type`),
-      secret.map(s => (s.id, s.user   , s.created, s.deleted          , s.method  , s.password, s.token))
+      (user.id, user.account, user.created, user.deleted, user.active, user.username, user.email, user.`type`),
+      secret.map(s => (s.id, s.user, s.created, s.deleted, s.method, s.password, s.token)),
+      permission.map(p => (p.id, p.user, p.permission, p.createdBy, p.created, p.deletedBy, p.deleted))
     )
 
-    /* merge users and their secrets */
+    /* merge users and their secrets and permissions */
     db.run(query.result) map {
-      _.map(pair => (toUser(pair._1), toPassword(pair._2)))
+      _.map(x => ((toUser(x._1), toPassword(x._2)), toPermission(x._3)))
     } map {
       _.groupBy(_._1)
         .map({
-          case (user, tuples) =>
-            val password = tuples.flatMap(_._2)
+          case ((user, password), tuples) =>
+            val password = tuples.flatMap(_._1._2)
               .filter(_.deleted.isEmpty)  /* not deleted */
               .sortBy(_.created)
               .reverse                    /* most recent */
               .headOption
-            (user.copy(password = password), tuples)
+
+            val perms: List[Permission] = tuples.flatMap(_._2)
+              .filter(_.deleted.isEmpty)  /* not deleted */
+              .sortBy(_.created)
+              .reverse                    /* most recent */
+              .toList
+
+            (user.copy(password = password, permissions = Option[List[Permission]](perms)), tuples)
         })
         .keys
         .toSeq
         .headOption
     }
+  }
+
+  def toPermission(tuple: Option[(Long, Long, String, Long, Timestamp, Option[Long], Option[Timestamp])]) = tuple map {
+    case (id, account, permission, createdBy, created, deletedBy, deleted) =>
+      Permission(
+        id         = id,
+        userId     = account,
+        permission = permission,
+        createdBy  = createdBy,
+        created    = new Date(created.getTime),
+        deletedBy  = deletedBy,
+        deleted    = deleted.map(it => new Date(it.getTime)))
   }
 
   def toPassword(tuple: Option[(Long, Long, Timestamp, Option[Timestamp], String, String, String)]) = tuple map {
@@ -84,12 +113,13 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
         username = username,
         email    = email,
         `type`   = accType,
-        password = None)
+        password = None,
+        permissions = None)
   }
 
-  override def byId       (it: Long)   : Future[Option[User]] = selectOne { case (user, _)   => user.id       === it }
-  override def byUsername (it: String) : Future[Option[User]] = selectOne { case (user, _)   => user.username === it }
-  override def byToken    (it: String) : Future[Option[User]] = selectOne { case (_, secret) =>
+  override def byId       (it: Long)   : Future[Option[User]] = selectOne { case ((user, _), _)   => user.id       === it }
+  override def byUsername (it: String) : Future[Option[User]] = selectOne { case ((user, _), _)   => user.username === it }
+  override def byToken    (it: String) : Future[Option[User]] = selectOne { case ((_, secret), _) =>
     secret.map(value => value.token === it && value.deleted.isEmpty) getOrElse false
   }
 
@@ -110,15 +140,16 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
       )
     } map { id =>
       User(
-        id        = id,
-        account   = request.account,
-        created   = Date.from(instant),
-        deleted   = None,
-        active    = true,
-        username  = request.username,
-        email     = request.email,
-        `type`    = request.`type`,
-        password  = None)
+        id          = id,
+        account     = request.account,
+        created     = Date.from(instant),
+        deleted     = None,
+        active      = true,
+        username    = request.username,
+        email       = request.email,
+        `type`      = request.`type`,
+        password    = None,
+        permissions = None)
     }
   }
 }
@@ -184,7 +215,6 @@ class UsersSupervisor (
           .recover { case NonFatal(e) => replyTo ! Failure(e) }
     }
 
-
   def validatePassword(it: CreateUserRequest): Future[Try[String]] = Future.successful {
     it
       .password
@@ -219,6 +249,9 @@ class UsersSupervisor (
 
     case it @ GetByToken(token) =>
       fw(it, byToken.get(token), users.byToken(token))
+
+    case it @ AddPermissionRequest(userId, _, _) =>
+      fw(it, byId.get(userId), users.byId(userId))
 
     case it @ AuthenticateRequest(username, _) =>
       fw(it, byUsername.get(username), users.byUsername(username))
@@ -266,6 +299,31 @@ class SingleUserSupervisor (
     services.clock().instant().minus(daysAgo)
   }
 
+  def addPermissionFor(userId: Long, permissions: Option[List[String]]): Future[Future[List[Permission]]] = {
+    val permissionIssuer = Option(user.id)
+    val target = accountManager.users().byId(userId)
+
+    target map {
+      case Some(targetUser) =>
+        val t = targetUser.permissions.get
+        var valid = true
+
+        t.foreach {
+          perm =>
+            if (permissions.getOrElse(Seq()).contains(perm.permission))
+              valid = false
+        }
+
+        if(!valid) {
+          Future.failed(new Exception("User already have one of the given permissions."))
+        } else {
+          val request = AddPermissionRequest(userId = userId, permissions = permissions, createdBy = permissionIssuer)
+          val perms = accountManager.permissions()
+          perms.create(request)
+        }
+    }
+  }
+
   def checkPassword(provided: String)(password: Password): Try[Token] = {
     if(password.created.before(passwordLifetimeLimit())) {
       Failure { new Exception("Password Too Old") }
@@ -292,6 +350,7 @@ class SingleUserSupervisor (
 
   override def receive = {
     case Refresh                                 => println("refreshing")
+    case AddPermissionRequest(userId, perms, _)  => sender ! addPermissionFor(userId, perms)
     case ReceiveTimeout                          => context.parent ! DecommissionSupervisor(user)
     case AuthenticateRequest(_, password)        => sender ! authenticate(password)
     case GetByToken(_)                           => sender ! user

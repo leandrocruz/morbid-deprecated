@@ -6,7 +6,6 @@ import services.{AppServices, TokenGenerator}
 
 trait RootActors {
   def users(): ActorRef
-
 }
 
 @Singleton
@@ -19,6 +18,6 @@ class RootActorsImpl @Inject() (
     .actorSystem()
     .actorOf(UsersSupervisor.props(services, tokens, accountManager), "users")
 
-  override def users() = usersRef
+  override def users(): ActorRef = usersRef
 }
 

@@ -35,3 +35,15 @@ CREATE TABLE secret (
     token    VARCHAR(128) NOT NULL UNIQUE         ,
     PRIMARY KEY(id)
 );
+
+DROP TABLE IF EXISTS permissions CASCADE;
+CREATE TABLE permissions (
+    id         SERIAL                             ,
+    user_id    BIGINT      REFERENCES users (id)  ,
+    permission VARCHAR(50) NOT NULL               ,
+    created_by  BIGINT      REFERENCES users (id)  ,
+    created    TIMESTAMP   NOT NULL               ,
+    deleted_by  BIGINT      REFERENCES users (id)  ,
+    deleted    TIMESTAMP                          ,
+    PRIMARY KEY(id)
+);
