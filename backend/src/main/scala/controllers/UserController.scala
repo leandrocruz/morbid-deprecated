@@ -68,5 +68,20 @@ class UserController @Inject()(
     }
   }
 
+  def refreshUser() = Action.async(parse.json) { implicit r =>
+    validateThen[RefreshUserRequest] {
+      case RefreshUserRequest(None) =>
+        Future.successful(BadRequest)
+      case req =>
+        inquire(actors.users()) { req } map {
+          case UnknownUser => NotFound
+          case Failure(e)  => Forbidden(e.getMessage)
+          case _           => Ok
+        } recover {
+          case NonFatal(e) => log.error("", e); InternalServerError
+        }
+    }
+  }
+
   def changePassword() = Action(Ok)
 }

@@ -56,22 +56,24 @@ case class CreateAccountRequest(name: String)
 case class CreateUserRequest(account: Long, username: String, password: Option[String], email: String, `type`: String)
 case class CreatePasswordRequest(user: Long, method: String, password: String, token: String)
 case class ResetPasswordRequest(username: Option[String], email: Option[String])
+case class RefreshUserRequest(username: Option[String])
 
 case class ServerTime(time: Date)
 
 object json {
   val format = "yyyyMMdd'T'HHmmss"
-  implicit val CustomDateWrites           = dateWrites(format)
-  implicit val CustomDateReads            = dateReads(format)
-  implicit val ServerTimeWriter           = Json.writes[ServerTime]
-  implicit val AccountWriter              = Json.writes[Account]
-  implicit val PasswordWriter             = Json.writes[Password]
-  implicit val UserWriter                 = Json.writes[User]
-  implicit val TokenWriter                = Json.writes[Token]
-  implicit val AuthenticateRequestReader  = Json.reads[AuthenticateRequest]
-  implicit val CreateAccountRequestReader = Json.reads[CreateAccountRequest]
-  implicit val CreateUserRequestReader    = Json.reads[CreateUserRequest]
-  implicit val ResetPasswordRequestReader = Json.reads[ResetPasswordRequest]
+  implicit val CustomDateWrites             = dateWrites(format)
+  implicit val CustomDateReads              = dateReads(format)
+  implicit val ServerTimeWriter             = Json.writes[ServerTime]
+  implicit val AccountWriter                = Json.writes[Account]
+  implicit val PasswordWriter               = Json.writes[Password]
+  implicit val UserWriter                   = Json.writes[User]
+  implicit val TokenWriter                  = Json.writes[Token]
+  implicit val AuthenticateRequestReader    = Json.reads[AuthenticateRequest]
+  implicit val CreateAccountRequestReader   = Json.reads[CreateAccountRequest]
+  implicit val CreateUserRequestReader      = Json.reads[CreateUserRequest]
+  implicit val ResetPasswordRequestReader   = Json.reads[ResetPasswordRequest]
+  implicit val RefreshUserRequestReader     = Json.reads[RefreshUserRequest]
 }
 
 import slick.jdbc.PostgresProfile.api._

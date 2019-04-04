@@ -9,6 +9,7 @@ import domain._
 import domain.collections._
 import org.slf4j.LoggerFactory
 import play.api.Configuration
+import play.api.mvc.Result
 import services.{AppServices, TokenGenerator}
 import slick.jdbc.PostgresProfile.api._
 import xingu.commons.play.akka.XinguActor
@@ -235,6 +236,9 @@ class UsersSupervisor (
     case it @ ResetPasswordRequest(Some(username), _) =>
       fw(it, byUsername.get(username), users.byUsername(username))
 
+    case it @ RefreshUserRequest(Some(username)) =>
+      fw(it, byUsername.get(username), users.byUsername(username))
+
     case any =>
       log.error(s"Can't handle $any")
   }
@@ -290,8 +294,13 @@ class SingleUserSupervisor (
     Future.successful("ok")
   }
 
+  def refreshUser(username: String): Future[Any] = {
+    context.parent ! DecommissionSupervisor(user)
+    Future.successful("ok")
+  }
+
   override def receive = {
-    case Refresh                                 => println("refreshing")
+    case RefreshUserRequest(Some(username))  => to(sender) { refreshUser(username) }
     case ReceiveTimeout                          => context.parent ! DecommissionSupervisor(user)
     case AuthenticateRequest(_, password)        => sender ! authenticate(password)
     case GetByToken(_)                           => sender ! user
