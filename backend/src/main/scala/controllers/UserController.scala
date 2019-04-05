@@ -22,7 +22,7 @@ class UserController @Inject()(
   val SuccessToken = TypeCase[Success[Token]]
 
   def addPermissionsFor() = Action.async(parse.json) { implicit r =>
-    validateThen[AddPermission[AddPermissionRequest]] { req =>
+    validateThen[AddPermissionRequest] { req =>
       inquire(actors.users()) { req } map {
         case UnknownUser => NotFound
         case Failure(e)  => Forbidden(e.getMessage)

@@ -1,6 +1,5 @@
 package store
 
-import java.security.Permissions
 import java.sql.Timestamp
 import java.time.temporal.ChronoUnit
 import java.util.Date
@@ -16,7 +15,7 @@ import xingu.commons.play.akka.XinguActor
 import xingu.commons.utils._
 
 import scala.collection.mutable
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.control.NonFatal
@@ -250,7 +249,7 @@ class UsersSupervisor (
     case it @ GetByToken(token) =>
       fw(it, byToken.get(token), users.byToken(token))
 
-    case it @ AddPermission(userId, _) =>
+    case it @ AddPermissionRequest(userId, _, _) =>
       fw(it, byId.get(userId), users.byId(userId))
 
     case it @ AuthenticateRequest(username, _) =>
@@ -352,7 +351,7 @@ class SingleUserSupervisor (
 
   override def receive = {
     case Refresh                                 => println("refreshing")
-    case AddPermission(userId, perms)            => to(sender) { addPermissionFor(userId, perms) }
+    case AddPermissionRequest(userId, perms, _)  => to(sender) { addPermissionFor(userId, perms) }
     case ReceiveTimeout                          => context.parent ! DecommissionSupervisor(user)
     case AuthenticateRequest(_, password)        => sender ! authenticate(password)
     case GetByToken(_)                           => sender ! user
