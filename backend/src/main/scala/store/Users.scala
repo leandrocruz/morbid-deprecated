@@ -9,7 +9,6 @@ import domain._
 import domain.collections._
 import org.slf4j.LoggerFactory
 import play.api.Configuration
-import play.api.mvc.Result
 import services.{AppServices, TokenGenerator}
 import slick.jdbc.PostgresProfile.api._
 import xingu.commons.play.akka.XinguActor
@@ -132,7 +131,7 @@ object UsersSupervisor {
 }
 
 case object Refresh
-case class DecommissionSupervisor(user: User)
+case class DecommissionSupervisor(user: User, replyTo: Option[ActorRef])
 
 class UsersSupervisor (
   services : AppServices,
@@ -211,9 +210,10 @@ class UsersSupervisor (
     }
 
   override def receive = {
-    case DecommissionSupervisor(user) =>
+    case DecommissionSupervisor(user, replyTo) =>
       log.info(s"Decommissioning supervisor for '${user.username}'")
       removeFromCache(user) foreach { context stop }
+      replyTo foreach { _ ! Decommissioned }
 
     case it @ GetById(id) =>
       fw(it, byId.get(id), users.byId(id))
@@ -236,8 +236,8 @@ class UsersSupervisor (
     case it @ ResetPasswordRequest(Some(username), _) =>
       fw(it, byUsername.get(username), users.byUsername(username))
 
-    case it @ RefreshUserRequest(Some(username)) =>
-      fw(it, byUsername.get(username), users.byUsername(username))
+    case it @ RefreshUserRequest(id) =>
+      fw(it, byId.get(id), users.byId(id))
 
     case any =>
       log.error(s"Can't handle $any")
@@ -294,14 +294,13 @@ class SingleUserSupervisor (
     Future.successful("ok")
   }
 
-  def refreshUser(username: String): Future[Any] = {
-    context.parent ! DecommissionSupervisor(user)
-    Future.successful("ok")
+  def decommission(replyTo: Option[ActorRef]) = {
+    context.parent ! DecommissionSupervisor(user, replyTo)
   }
 
   override def receive = {
-    case RefreshUserRequest(Some(username))  => to(sender) { refreshUser(username) }
-    case ReceiveTimeout                          => context.parent ! DecommissionSupervisor(user)
+    case ReceiveTimeout                          => decommission(None)
+    case RefreshUserRequest(_)                   => decommission(Some(sender))
     case AuthenticateRequest(_, password)        => sender ! authenticate(password)
     case GetByToken(_)                           => sender ! user
     case GetById(_)                              => sender ! user

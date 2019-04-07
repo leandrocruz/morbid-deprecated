@@ -7,6 +7,8 @@ import play.api.libs.json.Json
 import play.api.libs.json.Reads.dateReads
 import play.api.libs.json.Writes.dateWrites
 
+case object Done
+case object Decommissioned
 case object UnknownUser
 case class  GetByToken(token: String)
 case class  GetById(id: Long)
@@ -56,8 +58,7 @@ case class CreateAccountRequest(name: String)
 case class CreateUserRequest(account: Long, username: String, password: Option[String], email: String, `type`: String)
 case class CreatePasswordRequest(user: Long, method: String, password: String, token: String)
 case class ResetPasswordRequest(username: Option[String], email: Option[String])
-case class RefreshUserRequest(username: Option[String])
-
+case class RefreshUserRequest(user: Long)
 case class ServerTime(time: Date)
 
 object json {
