@@ -1,4 +1,4 @@
-FROM oystr-base-java:v1.0
+FROM leandrocruz/base-image-java:v11.0
 
 ADD bin  /opt/morbid/service/bin
 ADD lib  /opt/morbid/service/lib
