@@ -31,14 +31,18 @@ object Users {
       case (user, pwd, perm) =>
         user.deleted.isEmpty &&
         user.active          &&
-        pwd.exists  (_.deleted.isEmpty) &&
-        perm.exists (_.deleted.isEmpty)
+        pwd .forall (_.deleted.isEmpty) &&
+        perm.forall (_.deleted.isEmpty)
     }
 
-  private def perms(items: Seq[(User, Option[Password], Option[Permission])]): Option[Seq[Permission]] =
-    Some {
-      items.map({ case (_, _, perm) => perm.get })
-    }
+  private def perms(items: Seq[(User, Option[Password], Option[Permission])]): Option[Seq[Permission]] = {
+    val perms = items
+      .map({ case (_, _, p) => p })
+      .filter(_.isDefined)
+      .map(_.get)
+
+    if(perms.isEmpty) None else Some(perms)
+  }
 
   def merge(items: Seq[(User, Option[Password], Option[Permission])]) = {
     val filtered = items.filter { filter }
@@ -195,7 +199,7 @@ class UsersSupervisor (
     case DecommissionSupervisor(user, replyTo) =>
       log.info(s"Decommissioning supervisor for '${user.username}'")
       removeFromCache(user) foreach { context stop }
-      replyTo foreach { _ ! Decommissioned }
+      replyTo foreach { _ ! Done }
 
     case it @ GetById(id) =>
       fw(it, byId.get(id), users.byId(id))
@@ -205,6 +209,9 @@ class UsersSupervisor (
 
     case it @ AuthenticateRequest(username, _) =>
       fw(it, byUsername.get(username), users.byUsername(username))
+
+    case it @ AssignPermissionRequest(id, _) =>
+      fw(it, byId.get(id), users.byId(id))
 
     case it : CreateUserRequest =>
       to(sender()) {
@@ -233,10 +240,10 @@ class UnknownUserSupervisor extends Actor {
 }
 
 class SingleUserSupervisor (
-  user           : User,
-  services       : AppServices,
-  tokens         : TokenGenerator,
-  accountManager : Stores) extends Actor with ActorLogging with XinguActor {
+  var user : User,
+  services : AppServices,
+  tokens   : TokenGenerator,
+  stores   : Stores) extends Actor with ActorLogging with XinguActor {
 
   implicit val ec  = services.ec()
   val conf         = services.conf().get[Configuration] ("passwords")
@@ -280,13 +287,26 @@ class SingleUserSupervisor (
     context.parent ! DecommissionSupervisor(user, replyTo)
   }
 
+  def update(perm: Permission) = {
+    val perms = user.permissions.map(_ :+ perm).orElse(Some(Seq(perm)))
+    user = user.copy(permissions = perms)
+    Done
+  }
+
+  def assignPermission(permission: String) =
+    stores
+      .permissions()
+      .create(AssignPermissionRequest(user.id, permission))
+      .map(update)
+
   override def receive = {
     case ReceiveTimeout                          => decommission(None)
     case RefreshUserRequest(_)                   => decommission(Some(sender))
     case AuthenticateRequest(_, password)        => sender ! authenticate(password)
     case GetByToken(_)                           => sender ! user
     case GetById(_)                              => sender ! user
-    case ResetPasswordRequest(Some(username), _) => to(sender) { resetPasswordFor(username) }
+    case ResetPasswordRequest(Some(username), _) => to(sender) { resetPasswordFor(username)   }
+    case AssignPermissionRequest(_, permission)  => to(sender) { assignPermission(permission) }
     case any                                     => log.error(s"Can't handle $any")
   }
 }

@@ -36,14 +36,12 @@ CREATE TABLE secret (
     PRIMARY KEY(id)
 );
 
-DROP TABLE IF EXISTS secret CASCADE;
+DROP TABLE IF EXISTS permission CASCADE;
 CREATE TABLE permission (
     id         SERIAL                               ,
     user_id    BIGINT       REFERENCES users (id)   ,
     created    TIMESTAMP    NOT NULL                ,
-    created_by BIGINT       REFERENCES users (id)   ,
     deleted    TIMESTAMP                            ,
-    deleted_by BIGINT       REFERENCES users (id)   ,
     name       VARCHAR(128) NOT NULL                ,
     PRIMARY KEY(id)
 );

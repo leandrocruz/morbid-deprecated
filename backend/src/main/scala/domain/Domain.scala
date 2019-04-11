@@ -8,12 +8,12 @@ import play.api.libs.json.Reads.dateReads
 import play.api.libs.json.Writes.dateWrites
 
 case object Done
-case object Decommissioned
 case object UnknownUser
+case object ResourceAlreadyExists
+
 case class  GetByToken(token: String)
 case class  GetById(id: Long)
 case class  CreateResource[T](request: T)
-case object ResourceAlreadyExists
 
 case class Account(
   id       : Long,
@@ -57,11 +57,9 @@ case class Token(
 case class Permission(
   id        : Long,
   user      : Long,
-  name      : String,
-  createdBy : Long,
   created   : Date,
-  deletedBy : Option[Long],
-  deleted   : Option[Date]
+  deleted   : Option[Date],
+  name      : String
 )
 
 case class AuthenticateRequest(username: String, password: String)
@@ -70,7 +68,7 @@ case class CreateUserRequest(account: Long, username: String, password: Option[S
 case class CreatePasswordRequest(user: Long, method: String, password: String, token: String)
 case class ResetPasswordRequest(username: Option[String], email: Option[String])
 case class RefreshUserRequest(user: Long)
-case class AddPermissionRequest(user: Long, permission: String, createdBy: Option[Long])
+case class AssignPermissionRequest(user: Long, permission: String)
 case class ServerTime(time: Date)
 
 object json {
@@ -88,7 +86,7 @@ object json {
   implicit val CreateUserRequestReader      = Json.reads[CreateUserRequest]
   implicit val ResetPasswordRequestReader   = Json.reads[ResetPasswordRequest]
   implicit val RefreshUserRequestReader     = Json.reads[RefreshUserRequest]
-  implicit val AddPermissionRequestReader   = Json.reads[AddPermissionRequest]
+  implicit val AddPermissionRequestReader   = Json.reads[AssignPermissionRequest]
 }
 
 import slick.jdbc.PostgresProfile.api._
@@ -97,17 +95,15 @@ object tuples {
   type AccountTuple    = (Long, Timestamp, Option[Timestamp], Boolean, String)
   type UserTuple       = (Long, Long, Timestamp, Option[Timestamp], Boolean, String, String, String)
   type SecretTuple     = (Long, Long, Timestamp, Option[Timestamp], String, String, String)
-  type PermissionTuple = (Long, Long, Timestamp, Long, Option[Timestamp], Option[Long], String)
+  type PermissionTuple = (Long, Long, Timestamp, Option[Timestamp], String)
 
   def toPermission(tuple: Option[PermissionTuple]) = tuple map {
-    case (id, user, created, createdBy, deleted, deletedBy, name) =>
+    case (id, user, created, deleted, name) =>
       Permission(
         id        = id,
         user      = user,
         created   = created,
-        createdBy = createdBy,
         deleted   = deleted,
-        deletedBy = deletedBy,
         name      = name)
   }
 
@@ -174,11 +170,9 @@ class PermissionTable(tag: Tag) extends Table[tuples.PermissionTuple](tag, "perm
   def id        : Rep[Long]              = column[Long]              ("id", O.PrimaryKey, O.AutoInc)
   def user      : Rep[Long]              = column[Long]              ("user_id")
   def created   : Rep[Timestamp]         = column[Timestamp]         ("created")
-  def createdBy : Rep[Long]              = column[Long]              ("created_by")
   def deleted   : Rep[Option[Timestamp]] = column[Option[Timestamp]] ("deleted")
-  def deletedBy : Rep[Option[Long]]      = column[Option[Long]]      ("deleted_by")
   def name      : Rep[String]            = column[String]            ("name")
-  def * = (id, user, created, createdBy, deleted, deletedBy, name)
+  def * = (id, user, created, deleted, name)
 }
 
 object collections {

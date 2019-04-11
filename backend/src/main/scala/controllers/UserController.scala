@@ -4,6 +4,7 @@ import domain._
 import domain.json._
 import javax.inject.Inject
 import play.api.libs.json._
+import play.api.mvc.Result
 import services.AppServices
 import shapeless.TypeCase
 import store.{RootActors, Stores}
@@ -24,32 +25,36 @@ class UserController @Inject()(
     createResource[User, CreateUserRequest](actors.users())
   }
 
-  def byId(it: Long)   = Action.async {
-    inquire(actors.users()) { GetById(it) } map {
-      case UnknownUser  => NotFound
-      case u: User      => Ok(Json.toJson(u))
-    } recover {
-      case NonFatal(e)  => log.error("", e); InternalServerError
+  def serialize(user: User): JsValue = Json.toJson(user)
+  def skip[T](t: T) = JsNull
+
+  def toResult[T](fut: Future[Any]): Future[Result] = toJson(skip) { fut }
+
+  def toJson[T](fn: T => JsValue)(fut: Future[Any]): Future[Result] = fut map {
+    case UnknownUser => NotFound
+    case Failure(e)  => log.error("", e); Forbidden(e.getMessage)
+    case Done        => Ok
+    case value: T    => Ok(fn(value))
+  } recover {
+    case NonFatal(e) => log.error("", e); InternalServerError
+  }
+
+  def byId(it: Long)= Action.async {
+    toJson[User](serialize) {
+      inquire(actors.users()) { GetById(it) }
     }
   }
 
   def byToken(it: String) = Action.async {
-    inquire(actors.users()) { GetByToken(it) } map {
-      case UnknownUser  => NotFound
-      case u: User      => Ok(Json.toJson(u))
-    } recover {
-      case NonFatal(e)  => log.error("", e); InternalServerError
+    toJson[User](serialize) {
+      inquire(actors.users()) { GetByToken(it) }
     }
   }
 
   def login() = Action.async (parse.json) { implicit r =>
     validateThen[AuthenticateRequest] { req =>
-      inquire(actors.users()) { req } map {
-        case UnknownUser      => NotFound
-        case Failure(e)       => Forbidden(e.getMessage)
-        case SuccessToken(it) => Ok(Json.toJson(it.get))
-      } recover {
-        case NonFatal(e)      => log.error("", e); InternalServerError
+      toJson[Success[Token]](tk => Json.toJson(tk.get)) {
+        inquire(actors.users()) { req }
       }
     }
   }
@@ -59,26 +64,27 @@ class UserController @Inject()(
       case ResetPasswordRequest(None, None) =>
         Future.successful(BadRequest)
       case req =>
-        inquire(actors.users()) { req } map {
-          case UnknownUser => NotFound
-          case Failure(e)  => Forbidden(e.getMessage)
-        } recover {
-          case NonFatal(e) => log.error("", e); InternalServerError
+        toResult {
+          inquire(actors.users()) { req }
         }
     }
   }
 
   def refresh() = Action.async(parse.json) { implicit r =>
     validateThen[RefreshUserRequest] { req =>
-      inquire(actors.users()) { req } map {
-        case UnknownUser    => NotFound
-        case Failure(e)     => log.error("", e); InternalServerError
-        case Decommissioned => Ok
-      } recover {
-        case NonFatal(e) => log.error("", e); InternalServerError
+      toResult {
+        inquire(actors.users()) { req }
       }
     }
   }
 
   def changePassword() = Action(Ok)
+
+  def assignPermission() = Action.async(parse.json) { implicit r =>
+    validateThen[AssignPermissionRequest] { req =>
+      toResult {
+        inquire(actors.users()) { req }
+      }
+    }
+  }
 }
