@@ -7,7 +7,7 @@ import java.util.Date
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, ReceiveTimeout, Timers}
 import domain._
 import domain.collections._
-import org.slf4j.LoggerFactory
+import domain.tuples._
 import play.api.Configuration
 import services.{AppServices, TokenGenerator}
 import slick.jdbc.PostgresProfile.api._
@@ -26,84 +26,51 @@ trait Users extends ObjectStore[User, CreateUserRequest] {
   def byUsername(username: String) : Future[Option[User]]
 }
 
+object Users {
+  private def filter(row: (User, Option[Password], Option[Permission])): Boolean = row match {
+      case (user, pwd, perm) =>
+        user.deleted.isEmpty &&
+        user.active          &&
+        pwd.exists  (_.deleted.isEmpty) &&
+        perm.exists (_.deleted.isEmpty)
+    }
+
+  private def perms(items: Seq[(User, Option[Password], Option[Permission])]): Option[Seq[Permission]] =
+    Some {
+      items.map({ case (_, _, perm) => perm.get })
+    }
+
+  def merge(items: Seq[(User, Option[Password], Option[Permission])]) = {
+    val filtered = items.filter { filter }
+    filtered
+      .headOption
+      .map {
+        case (user, pwd, _) => user.copy(password = pwd, permissions = perms(filtered))
+      }
+  }
+}
+
 class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator) extends Users {
 
-  type RowFilterParams = (UserTable, Rep[Option[SecretTable]]) // remove warning from intellij
+  type RowFilterParams = ((UserTable, Rep[Option[SecretTable]]), Rep[Option[PermissionTable]]) // remove warning from intellij
 
   implicit val ec = services.ec()
-  val log = LoggerFactory.getLogger(getClass)
 
   def selectOne(rowFilter: RowFilterParams => Rep[Boolean]): Future[Option[User]] = {
     val query = for {
-      (user, secret) <- users joinLeft secrets on { _.id === _.user } filter { rowFilter }
-    } yield (
-                            (user.id, user.account, user.created, user.deleted, user.active, user.username, user.email, user.`type`),
-      secret      .map(s => (s.id, s.user, s.created, s.deleted, s.method, s.password, s.token))
-      //permission  .map(p => (p.id, p.user, p.created, p.createdBy, p.deleted, p.deletedBy, p.name))
-    )
+      ((user, secret), perm) <- users joinLeft secrets on { _.id === _.user } joinLeft permissions on { _._1.id === _.user } filter { rowFilter }
+    } yield (user, secret, perm)
 
-    /* merge users and their secrets */
-    db.run(query.result) map {
-      _.map(pair => (toUser(pair._1), toPassword(pair._2)))
-    } map {
-      _.groupBy(_._1)
-        .map({
-          case (user, tuples) =>
-            val password = tuples.flatMap(_._2)
-              .filter(_.deleted.isEmpty)  /* not deleted */
-              .sortBy(_.created)
-              .reverse                    /* most recent */
-              .headOption
-            (user.copy(password = password), tuples)
-        })
-        .keys
-        .toSeq
-        .headOption
+    db.run(query.result) map { rows =>
+      Users.merge {
+        rows.map(row => (toUser(row._1), toPassword(row._2), toPermission(row._3)))
+      }
     }
   }
 
-  def toPermission(tuple: Option[(Long, Long, Timestamp, Long, Option[Timestamp], Option[Long], String)]) = tuple map {
-    case (id, user, created, createdBy, deleted, deletedBy, name) =>
-      Permission(
-        id        = id,
-        user      = user,
-        created   = created,
-        createdBy = createdBy,
-        deleted   = deleted,
-        deletedBy = deletedBy,
-        name      = name)
-  }
-
-  def toPassword(tuple: Option[(Long, Long, Timestamp, Option[Timestamp], String, String, String)]) = tuple map {
-    case (id, user, created, deleted, method, password, token) =>
-      Password(
-        id       = id,
-        user     = user,
-        created  = new Date(created.getTime),
-        deleted  = deleted.map(it => new Date(it.getTime)),
-        method   = method,
-        password = password,
-        token    = token)
-  }
-
-  def toUser(tuple: (Long, Long, Timestamp, Option[Timestamp], Boolean, String, String, String)) = tuple match {
-    case (id, account, created, deleted, active, username, email, accType) =>
-      User(
-        id          = id,
-        account     = account,
-        created     = new Date(created.getTime),
-        deleted     = deleted.map(it => new Date(it.getTime)),
-        active      = active,
-        username    = username,
-        email       = email,
-        `type`      = accType,
-        password    = None,
-        permissions = None)
-  }
-
-  override def byId       (it: Long)   : Future[Option[User]] = selectOne { case (user, _)   => user.id       === it }
-  override def byUsername (it: String) : Future[Option[User]] = selectOne { case (user, _)   => user.username === it }
-  override def byToken    (it: String) : Future[Option[User]] = selectOne { case (_, secret) =>
+  override def byId       (it: Long)   : Future[Option[User]] = selectOne { case ((user, _), _)   => user.id       === it }
+  override def byUsername (it: String) : Future[Option[User]] = selectOne { case ((user, _), _)   => user.username === it }
+  override def byToken    (it: String) : Future[Option[User]] = selectOne { case ((_, secret), _) =>
     secret.map(value => value.token === it && value.deleted.isEmpty) getOrElse false
   }
 

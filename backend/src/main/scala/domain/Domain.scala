@@ -93,7 +93,53 @@ object json {
 
 import slick.jdbc.PostgresProfile.api._
 
-class AccountTable(tag: Tag) extends Table[(Long, Timestamp, Option[Timestamp], Boolean, String)](tag, "account") {
+object tuples {
+  type AccountTuple    = (Long, Timestamp, Option[Timestamp], Boolean, String)
+  type UserTuple       = (Long, Long, Timestamp, Option[Timestamp], Boolean, String, String, String)
+  type SecretTuple     = (Long, Long, Timestamp, Option[Timestamp], String, String, String)
+  type PermissionTuple = (Long, Long, Timestamp, Long, Option[Timestamp], Option[Long], String)
+
+  def toPermission(tuple: Option[PermissionTuple]) = tuple map {
+    case (id, user, created, createdBy, deleted, deletedBy, name) =>
+      Permission(
+        id        = id,
+        user      = user,
+        created   = created,
+        createdBy = createdBy,
+        deleted   = deleted,
+        deletedBy = deletedBy,
+        name      = name)
+  }
+
+  def toPassword(tuple: Option[SecretTuple]) = tuple map {
+    case (id, user, created, deleted, method, password, token) =>
+      Password(
+        id       = id,
+        user     = user,
+        created  = new Date(created.getTime),
+        deleted  = deleted.map(it => new Date(it.getTime)),
+        method   = method,
+        password = password,
+        token    = token)
+  }
+
+  def toUser(tuple: UserTuple) = tuple match {
+    case (id, account, created, deleted, active, username, email, accType) =>
+      User(
+        id          = id,
+        account     = account,
+        created     = new Date(created.getTime),
+        deleted     = deleted.map(it => new Date(it.getTime)),
+        active      = active,
+        username    = username,
+        email       = email,
+        `type`      = accType,
+        password    = None,
+        permissions = None)
+  }
+}
+
+class AccountTable(tag: Tag) extends Table[tuples.AccountTuple](tag, "account") {
   def id       : Rep[Long]              = column[Long]              ("id", O.PrimaryKey, O.AutoInc)
   def created  : Rep[Timestamp]         = column[Timestamp]         ("created")
   def deleted  : Rep[Option[Timestamp]] = column[Option[Timestamp]] ("deleted")
@@ -102,7 +148,7 @@ class AccountTable(tag: Tag) extends Table[(Long, Timestamp, Option[Timestamp], 
   def * = (id, created, deleted, active, name)
 }
 
-class UserTable(tag: Tag) extends Table[(Long, Long, Timestamp, Option[Timestamp], Boolean, String, String, String)](tag, "users") {
+class UserTable(tag: Tag) extends Table[tuples.UserTuple](tag, "users") {
   def id       : Rep[Long]              = column[Long]              ("id", O.PrimaryKey, O.AutoInc)
   def account  : Rep[Long]              = column[Long]              ("account")
   def created  : Rep[Timestamp]         = column[Timestamp]         ("created")
@@ -113,7 +159,7 @@ class UserTable(tag: Tag) extends Table[(Long, Long, Timestamp, Option[Timestamp
   def `type`   : Rep[String]            = column[String]            ("type")
   def * = (id, account, created, deleted, active, username, email, `type`)
 }
-class SecretTable(tag: Tag) extends Table[(Long, Long, Timestamp, Option[Timestamp], String, String, String)](tag, "secret") {
+class SecretTable(tag: Tag) extends Table[tuples.SecretTuple](tag, "secret") {
   def id       : Rep[Long]              = column[Long]              ("id", O.PrimaryKey, O.AutoInc)
   def user     : Rep[Long]              = column[Long]              ("user_id")
   def created  : Rep[Timestamp]         = column[Timestamp]         ("created")
@@ -124,7 +170,7 @@ class SecretTable(tag: Tag) extends Table[(Long, Long, Timestamp, Option[Timesta
   def * = (id, user, created, deleted, method, password, token)
 }
 
-class PermissionTable(tag: Tag) extends Table[(Long, Long, Timestamp, Long, Option[Timestamp], Option[Long], String)](tag, "permissions") {
+class PermissionTable(tag: Tag) extends Table[tuples.PermissionTuple](tag, "permission") {
   def id        : Rep[Long]              = column[Long]              ("id", O.PrimaryKey, O.AutoInc)
   def user      : Rep[Long]              = column[Long]              ("user_id")
   def created   : Rep[Timestamp]         = column[Timestamp]         ("created")
