@@ -35,10 +35,11 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
 
   def selectOne(rowFilter: RowFilterParams => Rep[Boolean]): Future[Option[User]] = {
     val query = for {
-      (user, secret) <- users joinLeft  secrets on { _.id === _.user } filter { rowFilter }
+      (user, secret) <- users joinLeft secrets on { _.id === _.user } filter { rowFilter }
     } yield (
-      (user.id, user.account, user.created, user.deleted, user.active, user.username, user.email   , user.`type`),
-      secret.map(s => (s.id, s.user   , s.created, s.deleted          , s.method  , s.password, s.token))
+                            (user.id, user.account, user.created, user.deleted, user.active, user.username, user.email, user.`type`),
+      secret      .map(s => (s.id, s.user, s.created, s.deleted, s.method, s.password, s.token))
+      //permission  .map(p => (p.id, p.user, p.created, p.createdBy, p.deleted, p.deletedBy, p.name))
     )
 
     /* merge users and their secrets */
@@ -61,6 +62,18 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
     }
   }
 
+  def toPermission(tuple: Option[(Long, Long, Timestamp, Long, Option[Timestamp], Option[Long], String)]) = tuple map {
+    case (id, user, created, createdBy, deleted, deletedBy, name) =>
+      Permission(
+        id        = id,
+        user      = user,
+        created   = created,
+        createdBy = createdBy,
+        deleted   = deleted,
+        deletedBy = deletedBy,
+        name      = name)
+  }
+
   def toPassword(tuple: Option[(Long, Long, Timestamp, Option[Timestamp], String, String, String)]) = tuple map {
     case (id, user, created, deleted, method, password, token) =>
       Password(
@@ -76,15 +89,16 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
   def toUser(tuple: (Long, Long, Timestamp, Option[Timestamp], Boolean, String, String, String)) = tuple match {
     case (id, account, created, deleted, active, username, email, accType) =>
       User(
-        id       = id,
-        account  = account,
-        created  = new Date(created.getTime),
-        deleted  = deleted.map(it => new Date(it.getTime)),
-        active   = active,
-        username = username,
-        email    = email,
-        `type`   = accType,
-        password = None)
+        id          = id,
+        account     = account,
+        created     = new Date(created.getTime),
+        deleted     = deleted.map(it => new Date(it.getTime)),
+        active      = active,
+        username    = username,
+        email       = email,
+        `type`      = accType,
+        password    = None,
+        permissions = None)
   }
 
   override def byId       (it: Long)   : Future[Option[User]] = selectOne { case (user, _)   => user.id       === it }
@@ -110,15 +124,16 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
       )
     } map { id =>
       User(
-        id        = id,
-        account   = request.account,
-        created   = Date.from(instant),
-        deleted   = None,
-        active    = true,
-        username  = request.username,
-        email     = request.email,
-        `type`    = request.`type`,
-        password  = None)
+        id          = id,
+        account     = request.account,
+        created     = Date.from(instant),
+        deleted     = None,
+        active      = true,
+        username    = request.username,
+        email       = request.email,
+        `type`      = request.`type`,
+        password    = None,
+        permissions = None)
     }
   }
 }

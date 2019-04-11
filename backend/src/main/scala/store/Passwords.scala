@@ -5,7 +5,6 @@ import java.util.Date
 
 import domain._
 import domain.collections.secrets
-import org.slf4j.LoggerFactory
 import services.{AppServices, TokenGenerator}
 import slick.jdbc.PostgresProfile.api._
 
@@ -16,8 +15,6 @@ trait Passwords extends ObjectStore[Password, CreatePasswordRequest] {}
 class DatabasePasswords (services: AppServices, db: Database, tokens: TokenGenerator) extends Passwords {
 
   implicit val ec = services.ec()
-
-  val log = LoggerFactory.getLogger(getClass)
 
   override def byId(id: Long) : Future[Option[Password]] = Future.failed(new Exception("TODO"))
 

@@ -34,15 +34,16 @@ case class Password(
 )
 
 case class User(
-  id       : Long,
-  account  : Long,
-  created  : Date,
-  deleted  : Option[Date],
-  active   : Boolean,
-  username : String,
-  email    : String,
-  `type`   : String,
-  password : Option[Password]
+  id          : Long,
+  account     : Long,
+  created     : Date,
+  deleted     : Option[Date],
+  active      : Boolean,
+  username    : String,
+  email       : String,
+  `type`      : String,
+  password    : Option[Password],
+  permissions : Option[Seq[Permission]]
 )
 
 case class Token(
@@ -53,12 +54,23 @@ case class Token(
   expiresAt : Option[Date]
 )
 
+case class Permission(
+  id        : Long,
+  user      : Long,
+  name      : String,
+  createdBy : Long,
+  created   : Date,
+  deletedBy : Option[Long],
+  deleted   : Option[Date]
+)
+
 case class AuthenticateRequest(username: String, password: String)
 case class CreateAccountRequest(name: String)
 case class CreateUserRequest(account: Long, username: String, password: Option[String], email: String, `type`: String)
 case class CreatePasswordRequest(user: Long, method: String, password: String, token: String)
 case class ResetPasswordRequest(username: Option[String], email: Option[String])
 case class RefreshUserRequest(user: Long)
+case class AddPermissionRequest(user: Long, permission: String, createdBy: Option[Long])
 case class ServerTime(time: Date)
 
 object json {
@@ -68,6 +80,7 @@ object json {
   implicit val ServerTimeWriter             = Json.writes[ServerTime]
   implicit val AccountWriter                = Json.writes[Account]
   implicit val PasswordWriter               = Json.writes[Password]
+  implicit val PermissionWriter             = Json.writes[Permission]
   implicit val UserWriter                   = Json.writes[User]
   implicit val TokenWriter                  = Json.writes[Token]
   implicit val AuthenticateRequestReader    = Json.reads[AuthenticateRequest]
@@ -75,6 +88,7 @@ object json {
   implicit val CreateUserRequestReader      = Json.reads[CreateUserRequest]
   implicit val ResetPasswordRequestReader   = Json.reads[ResetPasswordRequest]
   implicit val RefreshUserRequestReader     = Json.reads[RefreshUserRequest]
+  implicit val AddPermissionRequestReader   = Json.reads[AddPermissionRequest]
 }
 
 import slick.jdbc.PostgresProfile.api._
@@ -110,8 +124,20 @@ class SecretTable(tag: Tag) extends Table[(Long, Long, Timestamp, Option[Timesta
   def * = (id, user, created, deleted, method, password, token)
 }
 
+class PermissionTable(tag: Tag) extends Table[(Long, Long, Timestamp, Long, Option[Timestamp], Option[Long], String)](tag, "permissions") {
+  def id        : Rep[Long]              = column[Long]              ("id", O.PrimaryKey, O.AutoInc)
+  def user      : Rep[Long]              = column[Long]              ("user_id")
+  def created   : Rep[Timestamp]         = column[Timestamp]         ("created")
+  def createdBy : Rep[Long]              = column[Long]              ("created_by")
+  def deleted   : Rep[Option[Timestamp]] = column[Option[Timestamp]] ("deleted")
+  def deletedBy : Rep[Option[Long]]      = column[Option[Long]]      ("deleted_by")
+  def name      : Rep[String]            = column[String]            ("name")
+  def * = (id, user, created, createdBy, deleted, deletedBy, name)
+}
+
 object collections {
-  val accounts = TableQuery[AccountTable]
-  val users    = TableQuery[UserTable]
-  val secrets  = TableQuery[SecretTable]
+  val accounts    = TableQuery[AccountTable]
+  val users       = TableQuery[UserTable]
+  val secrets     = TableQuery[SecretTable]
+  val permissions = TableQuery[PermissionTable]
 }
