@@ -1,7 +1,7 @@
 /* DROP DATABASE morbid; */
 /* CREATE DATABASE morbid WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'en_US.UTF-8' LC_CTYPE = 'en_US.UTF-8'; */
 
-DROP TABLE IF EXISTS account CASCADE;
+DROP TABLE IF EXISTS accounts CASCADE;
 CREATE TABLE account (
     id       SERIAL                             ,
     created  TIMESTAMP    NOT NULL              ,
@@ -24,7 +24,7 @@ CREATE TABLE users (
     PRIMARY KEY(id)
 );
 
-DROP TABLE IF EXISTS secret CASCADE;
+DROP TABLE IF EXISTS secrets CASCADE;
 CREATE TABLE secret (
     id       SERIAL                               ,
     user_id  BIGINT       REFERENCES users (id)   ,
@@ -36,7 +36,7 @@ CREATE TABLE secret (
     PRIMARY KEY(id)
 );
 
-DROP TABLE IF EXISTS permission CASCADE;
+DROP TABLE IF EXISTS permissions CASCADE;
 CREATE TABLE permission (
     id         SERIAL                               ,
     user_id    BIGINT       REFERENCES users (id)   ,

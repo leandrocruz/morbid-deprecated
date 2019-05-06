@@ -135,7 +135,7 @@ object tuples {
   }
 }
 
-class AccountTable(tag: Tag) extends Table[tuples.AccountTuple](tag, "account") {
+class AccountTable(tag: Tag) extends Table[tuples.AccountTuple](tag, "accounts") {
   def id       : Rep[Long]              = column[Long]              ("id", O.PrimaryKey, O.AutoInc)
   def created  : Rep[Timestamp]         = column[Timestamp]         ("created")
   def deleted  : Rep[Option[Timestamp]] = column[Option[Timestamp]] ("deleted")
@@ -155,7 +155,7 @@ class UserTable(tag: Tag) extends Table[tuples.UserTuple](tag, "users") {
   def `type`   : Rep[String]            = column[String]            ("type")
   def * = (id, account, created, deleted, active, username, email, `type`)
 }
-class SecretTable(tag: Tag) extends Table[tuples.SecretTuple](tag, "secret") {
+class SecretTable(tag: Tag) extends Table[tuples.SecretTuple](tag, "secrets") {
   def id       : Rep[Long]              = column[Long]              ("id", O.PrimaryKey, O.AutoInc)
   def user     : Rep[Long]              = column[Long]              ("user_id")
   def created  : Rep[Timestamp]         = column[Timestamp]         ("created")
@@ -166,7 +166,7 @@ class SecretTable(tag: Tag) extends Table[tuples.SecretTuple](tag, "secret") {
   def * = (id, user, created, deleted, method, password, token)
 }
 
-class PermissionTable(tag: Tag) extends Table[tuples.PermissionTuple](tag, "permission") {
+class PermissionTable(tag: Tag) extends Table[tuples.PermissionTuple](tag, "permissions") {
   def id        : Rep[Long]              = column[Long]              ("id", O.PrimaryKey, O.AutoInc)
   def user      : Rep[Long]              = column[Long]              ("user_id")
   def created   : Rep[Timestamp]         = column[Timestamp]         ("created")
