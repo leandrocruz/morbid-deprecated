@@ -5,9 +5,10 @@ import domain.json._
 import javax.inject.Inject
 import play.api.libs.json._
 import play.api.mvc.Result
-import services.AppServices
+import services.{AppServices, TokenGenerator}
 import shapeless.TypeCase
 import store.{RootActors, Stores}
+import xingu.commons.utils._
 import xingu.commons.play.akka.utils._
 
 import scala.concurrent.Future
@@ -17,6 +18,7 @@ import scala.util.{Failure, Success}
 class UserController @Inject()(
   services : AppServices,
   actors   : RootActors,
+  tokens   : TokenGenerator,
   stores   : Stores) extends ControllerSupport (services) {
 
   val SuccessToken = TypeCase[Success[Token]]
@@ -46,8 +48,12 @@ class UserController @Inject()(
   }
 
   def byToken(it: String) = Action.async {
-    toJson[User](serialize) {
-      inquire(actors.users()) { GetByToken(it) }
+    tokens.verify(it) match {
+      case Failure(e)   => Forbidden("Invalid Signature").successful()
+      case Success(jws) =>
+        toJson[User](serialize) {
+          inquire(actors.users()) { GetByToken(jws.getBody.getSubject) }
+        }
     }
   }
 
