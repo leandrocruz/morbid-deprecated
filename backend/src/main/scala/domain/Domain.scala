@@ -133,7 +133,7 @@ object tuples {
         active  = active,
         name    = name,
         `type`  = kind,
-      )o
+      )
   }
 
   def toUser(tuple: UserTuple) = tuple match {
