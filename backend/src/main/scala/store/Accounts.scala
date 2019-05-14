@@ -3,7 +3,6 @@ package store
 import java.sql.Timestamp
 import java.util.Date
 
-import akka.actor.{Actor, ActorLogging, Props}
 import domain.collections.accounts
 import domain.{Account, AccountTable, CreateAccountRequest, collections}
 import services.AppServices
@@ -19,16 +18,17 @@ class DatabaseAccounts (services: AppServices, db: Database) extends Accounts {
 
   override def byId(id: Long): Future[Option[Account]] = toAccount { collections.accounts.filter(_.id === id) }
 
-  def toAccount(query: Query[AccountTable, (Long, Timestamp, Option[Timestamp], Boolean, String), Seq]) =
+  def toAccount(query: Query[AccountTable, (Long, Timestamp, Option[Timestamp], Boolean, String, String), Seq]) =
     db.run(query.result) map {
       _ map {
-        case (id, created, deleted, active, name) =>
+        case (id, created, deleted, active, name, kind) =>
           Account(
             id       = id,
             created  = new Date(created.getTime),
             deleted  = deleted.map(it => new Date(it.getTime)),
             active   = active,
-            name     = name
+            name     = name,
+            `type`   = kind
           )
       }
     } map {
@@ -45,7 +45,8 @@ class DatabaseAccounts (services: AppServices, db: Database) extends Accounts {
         created,
         null,
         true,
-        request.name
+        request.name,
+        request.`type`
       )
     }
 
@@ -55,17 +56,8 @@ class DatabaseAccounts (services: AppServices, db: Database) extends Accounts {
         created = Date.from(instant),
         deleted = None,
         active  = true,
-        name    = request.name)
+        name    = request.name,
+        `type`  = request.`type`)
     }
-  }
-}
-
-object AccountManagerSupervisor {
-  def props(services: AppServices) = Props(classOf[AccountManagerSupervisor], services)
-}
-
-class AccountManagerSupervisor (services: AppServices) extends Actor with ActorLogging {
-  override def receive = {
-    case "hi" => sender ! "hallo"
   }
 }
