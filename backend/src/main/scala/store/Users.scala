@@ -27,54 +27,56 @@ trait Users extends ObjectStore[User, CreateUserRequest] {
 }
 
 object Users {
-  private def filter(row: (User, Option[Password], Option[Permission])): Boolean = row match {
-      case (user, pwd, perm) =>
-        user.deleted.isEmpty &&
-        user.active          &&
+  private def filter(row: (User, Account, Option[Password], Option[Permission])): Boolean = row match {
+      case (user, account, pwd, perm) =>
+        user.deleted.isEmpty && user.active             &&
+        account.active       && account.deleted.isEmpty &&
         pwd .forall (_.deleted.isEmpty) &&
         perm.forall (_.deleted.isEmpty)
     }
 
-  private def perms(items: Seq[(User, Option[Password], Option[Permission])]): Option[Seq[Permission]] = {
+  private def perms(items: Seq[(User, Account, Option[Password], Option[Permission])]): Option[Seq[Permission]] = {
     val perms = items
-      .map({ case (_, _, p) => p })
+      .map({ case (_, _, _, p) => p })
       .filter(_.isDefined)
       .map(_.get)
 
     if(perms.isEmpty) None else Some(perms)
   }
 
-  def merge(items: Seq[(User, Option[Password], Option[Permission])]) = {
+  def merge(items: Seq[(User, Account, Option[Password], Option[Permission])]) = {
     val filtered = items.filter { filter }
     filtered
       .headOption
       .map {
-        case (user, pwd, _) => user.copy(password = pwd, permissions = perms(filtered))
+        case (user, account, pwd, _) => user.copy(password = pwd, account = Some(account), permissions = perms(filtered))
       }
   }
 }
 
 class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator) extends Users {
 
-  type RowFilterParams = ((UserTable, Rep[Option[SecretTable]]), Rep[Option[PermissionTable]]) // remove warning from intellij
+  type RowFilterParams = (((UserTable, AccountTable), Rep[Option[SecretTable]]), Rep[Option[PermissionTable]]) // remove warning from intellij
 
   implicit val ec = services.ec()
 
   def selectOne(rowFilter: RowFilterParams => Rep[Boolean]): Future[Option[User]] = {
     val query = for {
-      ((user, secret), perm) <- users joinLeft secrets on { _.id === _.user } joinLeft permissions on { _._1.id === _.user } filter { rowFilter }
-    } yield (user, secret, perm)
+      (((user, account), secret), perm) <- users join accounts on { _.account === _.id } joinLeft secrets on { _._1.id === _.user } joinLeft permissions on { _._1._1.id === _.user } filter { rowFilter }
+    } yield (user, account, secret, perm)
+
+    //println(query.result.statements)
 
     db.run(query.result) map { rows =>
       Users.merge {
-        rows.map(row => (toUser(row._1), toPassword(row._2), toPermission(row._3)))
+        rows.map(row => (toUser(row._1), toAccount(row._2), toPassword(row._3), toPermission(row._4)))
       }
     }
   }
 
-  override def byId       (it: Long)   : Future[Option[User]] = selectOne { case ((user, _), _)   => user.id       === it }
-  override def byUsername (it: String) : Future[Option[User]] = selectOne { case ((user, _), _)   => user.username === it }
-  override def byToken    (it: String) : Future[Option[User]] = selectOne { case ((_, secret), _) =>
+  override def byId       (it: Long)   : Future[Option[User]] = selectOne { case (((user, _), _), _)   => user.id       === it }
+  override def byUsername (it: String) : Future[Option[User]] = selectOne { case (((user, _), _), _)   => user.username === it }
+  override def byToken    (it: String) : Future[Option[User]] = selectOne { case ((_, secret), _)      =>
     secret.map(value => value.token === it && value.deleted.isEmpty) getOrElse false
   }
 
@@ -96,7 +98,7 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
     } map { id =>
       User(
         id          = id,
-        account     = request.account,
+        account     = None,
         created     = Date.from(instant),
         deleted     = None,
         active      = true,
