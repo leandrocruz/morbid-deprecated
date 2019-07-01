@@ -24,9 +24,10 @@ class ControllerSupport (services: AppServices) extends InjectedController with 
   def handle[R](it: Any)(implicit writer: Writes[R]): Result = it match {
     case Right(resource: R) => Ok(Json.toJson(resource))
     case Left(violation)    => violation match {
-      case ForeignKeyViolation(e) => log.error("ForeignKeyViolation", e) ; PreconditionFailed("ForeignKeyViolation")
-      case UniqueViolation(e)     => log.error("UniqueViolation", e)     ; Conflict("UniqueViolation")
-      case UnknownViolation(e)    => log.error("UnknownViolation", e)    ; InternalServerError("UnknownViolation")
+      case IntegrityConstraintViolation (e) => log.error("IntegrityConstraintViolation", e) ; PreconditionFailed("IntegrityConstraintViolation")
+      case ForeignKeyViolation          (e) => log.error("ForeignKeyViolation", e)          ; PreconditionFailed("ForeignKeyViolation")
+      case UniqueViolation              (e) => log.error("UniqueViolation", e)              ; Conflict("UniqueViolation")
+      case UnknownViolation             (e) => log.error("UnknownViolation", e)             ; InternalServerError("UnknownViolation")
     }
   }
 
