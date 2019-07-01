@@ -4,6 +4,10 @@ import java.util.Date
 
 object domain {
 
+  case class CreateAccountRequest(name: String, `type`: String)
+
+  case class CreateUserRequest(account: Long, username: String, password: Option[String], email: String, `type`: String)
+
   case class AuthenticateRequest(username: String, password: String)
 
   case class Account(

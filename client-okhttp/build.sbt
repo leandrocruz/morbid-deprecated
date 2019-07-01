@@ -10,5 +10,6 @@ resolvers ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "com.squareup.okhttp3" % "okhttp" % "4.0.0"
+  "org.apache.commons"   % "commons-text" % "1.6",
+  "com.squareup.okhttp3" % "okhttp"       % "4.0.0"
 )
