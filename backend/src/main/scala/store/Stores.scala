@@ -11,7 +11,7 @@ import scala.util.Either
 
 trait ObjectStore[T, CREATE] {
   def byId(id: Long): Future[Option[T]]
-  def create(request: CREATE): Future[Either[Throwable, T]]
+  def create(request: CREATE): Future[Either[Violation, T]]
 }
 
 trait Stores {

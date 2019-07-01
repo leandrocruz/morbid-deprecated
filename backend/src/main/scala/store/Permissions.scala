@@ -10,6 +10,7 @@ import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Future
 import scala.language.postfixOps
+import scala.util.control.NonFatal
 
 trait Permissions extends ObjectStore[Permission, AssignPermissionRequest] {}
 
@@ -19,7 +20,7 @@ class DatabasePermissions(services: AppServices, db: Database) extends Permissio
 
   override def byId(id: Long): Future[Option[Permission]] = Future.failed(new Exception("TODO"))
 
-  override def create(request: AssignPermissionRequest): Future[Either[Throwable, Permission]] = {
+  override def create(request: AssignPermissionRequest): Future[Either[Violation, Permission]] = {
 
     val instant   = services.clock().instant()
     val created   = new Timestamp(instant.toEpochMilli)
@@ -40,6 +41,8 @@ class DatabasePermissions(services: AppServices, db: Database) extends Permissio
           deleted   = None,
           name      = request.permission
       ))
+    } recover {
+      case NonFatal(e) => Left(Violations.of(e))
     }
   }
 }

@@ -33,12 +33,12 @@ class UserController @Inject()(
   def toResult[T](fut: Future[Any]): Future[Result] = toJson(skip) { fut }
 
   def toJson[T](fn: T => JsValue)(fut: Future[Any]): Future[Result] = fut map {
-    case UnknownUser => NotFound
-    case Failure(e)  => log.error("", e); Forbidden(e.getMessage)
-    case Done        => Ok
-    case Left(err)   => InternalServerError
+    case UnknownUser     => NotFound
+    case Failure(e)      => log.error("", e); Forbidden(e.getMessage)
+    case Done            => Ok
+    case Left(err)       => log.error("", err); InternalServerError
     case Right(value: T) => Ok(fn(value))
-    case value: T    => Ok(fn(value))
+    case value: T        => Ok(fn(value))
   } recover {
     case NonFatal(e) => log.error("", e); InternalServerError
   }

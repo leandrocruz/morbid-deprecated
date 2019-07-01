@@ -19,10 +19,10 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.control.NonFatal
-import scala.util.{Failure, Success, Try, Either}
-
+import scala.util.{Either, Failure, Success, Try}
 import cats.data.EitherT
 import cats.implicits._
+import store.violations._
 
 trait Users extends ObjectStore[User, CreateUserRequest] {
   def byToken(it: String)          : Future[Option[User]]
@@ -83,7 +83,7 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
     secret.map(value => value.token === it && value.deleted.isEmpty) getOrElse false
   }
 
-  override def create(request: CreateUserRequest): Future[Either[Throwable, User]] = {
+  override def create(request: CreateUserRequest): Future[Either[Violation, User]] = {
     val instant = services.clock().instant()
     val created = new Timestamp(instant.toEpochMilli)
 
@@ -112,6 +112,8 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
           password    = None,
           permissions = None
       ))
+    } recover {
+      case NonFatal(e) => Left(Violations.of(e))
     }
   }
 }
@@ -190,10 +192,10 @@ class UsersSupervisor (
       }
   }
 
-  def create(req: CreateUserRequest, same: Option[User], password: Try[String]): Future[Either[Throwable, User]] =
+  def create(req: CreateUserRequest, same: Option[User], password: Try[String]): Future[Either[Violation, User]] =
     (same, password) match {
-      case (Some(_), _)         => Left(new Exception("ResourceAlreadyExists")).successful()
-      case (_, Failure(e))      => Left(e).successful()
+      case (Some(_), _)         => Left(UniqueViolation(new Exception("User Already Exists"))).successful()
+      case (_, Failure(e))      => Left(Violations.of(e)).successful()
       case (_, Success(strong)) =>
         val token  = services.rnd().generate(32)
         val xx = for {
