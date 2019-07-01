@@ -18,7 +18,7 @@ class DatabasePasswords (services: AppServices, db: Database, tokens: TokenGener
 
   override def byId(id: Long) : Future[Option[Password]] = Future.failed(new Exception("TODO"))
 
-  override def create(request: CreatePasswordRequest) : Future[Password] = {
+  override def create(request: CreatePasswordRequest) : Future[Either[Throwable, Password]] = {
     val instant = services.clock().instant()
     val created = new Timestamp(instant.toEpochMilli)
     db.run {
@@ -32,7 +32,8 @@ class DatabasePasswords (services: AppServices, db: Database, tokens: TokenGener
         request.token
       )
     } map { id =>
-      Password(
+      Right(
+        Password(
         id        = id,
         user      = request.user,
         created   = Date.from(instant),
@@ -40,7 +41,7 @@ class DatabasePasswords (services: AppServices, db: Database, tokens: TokenGener
         method    = request.method,
         password  = request.password,
         token     = request.token
-      )
+      ))
     }
   }
 }

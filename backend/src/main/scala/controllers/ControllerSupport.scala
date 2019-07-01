@@ -36,7 +36,8 @@ class ControllerSupport (services: AppServices) extends InjectedController with 
   def createResourceDirectly[RESOURCE, REQUEST](collection: ObjectStore[RESOURCE, REQUEST])(implicit req: Request[JsValue], writer: Writes[RESOURCE], reader: Reads[REQUEST]): Future[Result] = {
     validateThen[REQUEST] { it =>
       collection.create(it) map {
-        resource: RESOURCE => Ok(Json.toJson(resource))
+        case Right(resource: RESOURCE) => Ok(Json.toJson(resource))
+        case Left(e)    => log.error("Error Creating Resource", e); InternalServerError
       } recover {
         case NonFatal(e)   => log.error("Error Creating Resource", e); InternalServerError
       }

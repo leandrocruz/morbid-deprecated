@@ -36,7 +36,7 @@ class DatabaseAccounts (services: AppServices, db: Database) extends Accounts {
     }
 
 
-  override def create(request: CreateAccountRequest): Future[Account] = {
+  override def create(request: CreateAccountRequest): Future[Either[Throwable, Account]] = {
     val instant = services.clock().instant()
     val created = new Timestamp(instant.toEpochMilli)
     val result  = db.run {
@@ -51,13 +51,15 @@ class DatabaseAccounts (services: AppServices, db: Database) extends Accounts {
     }
 
     result map { id =>
-      Account(
-        id      = id,
-        created = Date.from(instant),
-        deleted = None,
-        active  = true,
-        name    = request.name,
-        `type`  = request.`type`)
+      Right(
+        Account(
+          id      = id,
+          created = Date.from(instant),
+          deleted = None,
+          active  = true,
+          name    = request.name,
+          `type`  = request.`type`
+      ))
     }
   }
 }

@@ -7,10 +7,11 @@ import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Future
 import scala.language.postfixOps
+import scala.util.Either
 
 trait ObjectStore[T, CREATE] {
   def byId(id: Long): Future[Option[T]]
-  def create(request: CREATE): Future[T]
+  def create(request: CREATE): Future[Either[Throwable, T]]
 }
 
 trait Stores {

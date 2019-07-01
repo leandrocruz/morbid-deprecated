@@ -19,7 +19,10 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.control.NonFatal
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Success, Try, Either}
+
+import cats.data.EitherT
+import cats.implicits._
 
 trait Users extends ObjectStore[User, CreateUserRequest] {
   def byToken(it: String)          : Future[Option[User]]
@@ -80,7 +83,7 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
     secret.map(value => value.token === it && value.deleted.isEmpty) getOrElse false
   }
 
-  override def create(request: CreateUserRequest): Future[User] = {
+  override def create(request: CreateUserRequest): Future[Either[Throwable, User]] = {
     val instant = services.clock().instant()
     val created = new Timestamp(instant.toEpochMilli)
 
@@ -96,17 +99,19 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
         request.`type`
       )
     } map { id =>
-      User(
-        id          = id,
-        account     = None,
-        created     = Date.from(instant),
-        deleted     = None,
-        active      = true,
-        username    = request.username,
-        email       = request.email,
-        `type`      = request.`type`,
-        password    = None,
-        permissions = None)
+      Right(
+        User(
+          id          = id,
+          account     = None,
+          created     = Date.from(instant),
+          deleted     = None,
+          active      = true,
+          username    = request.username,
+          email       = request.email,
+          `type`      = request.`type`,
+          password    = None,
+          permissions = None
+      ))
     }
   }
 }
@@ -185,16 +190,17 @@ class UsersSupervisor (
       }
   }
 
-  def create(req: CreateUserRequest, same: Option[User], password: Try[String]): Future[Any] =
+  def create(req: CreateUserRequest, same: Option[User], password: Try[String]): Future[Either[Throwable, User]] =
     (same, password) match {
-      case (Some(_), _)         => ResourceAlreadyExists.successful()
-      case (_, Failure(e))      => Failure(e).successful()
+      case (Some(_), _)         => Left(new Exception("ResourceAlreadyExists")).successful()
+      case (_, Failure(e))      => Left(e).successful()
       case (_, Success(strong)) =>
         val token  = services.rnd().generate(32)
-        for {
-          u <- users     create req
-          p <- passwords create CreatePasswordRequest(u.id, "sha256", strong.sha256(), token)
+        val xx = for {
+          u <- EitherT(users     create req)
+          p <- EitherT(passwords create CreatePasswordRequest(u.id, "sha256", strong.sha256(), token))
         } yield u.copy(password = Some(p.copy(password = strong, method = "plain")))
+        xx.value
     }
 
   override def receive = {
@@ -299,7 +305,7 @@ class SingleUserSupervisor (
     stores
       .permissions()
       .create(AssignPermissionRequest(user.id, permission))
-      .map(update)
+      .map(_.map(update))
 
   override def receive = {
     case ReceiveTimeout                          => decommission(None)

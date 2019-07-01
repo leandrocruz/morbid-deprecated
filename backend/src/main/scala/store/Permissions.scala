@@ -19,7 +19,7 @@ class DatabasePermissions(services: AppServices, db: Database) extends Permissio
 
   override def byId(id: Long): Future[Option[Permission]] = Future.failed(new Exception("TODO"))
 
-  override def create(request: AssignPermissionRequest): Future[Permission] = {
+  override def create(request: AssignPermissionRequest): Future[Either[Throwable, Permission]] = {
 
     val instant   = services.clock().instant()
     val created   = new Timestamp(instant.toEpochMilli)
@@ -32,13 +32,14 @@ class DatabasePermissions(services: AppServices, db: Database) extends Permissio
         request.permission
       )
     } map { id =>
-      Permission(
-        id        = id,
-        user      = request.user,
-        created   = Date.from(instant),
-        deleted   = None,
-        name      = request.permission
-      )
+      Right(
+        Permission(
+          id        = id,
+          user      = request.user,
+          created   = Date.from(instant),
+          deleted   = None,
+          name      = request.permission
+      ))
     }
   }
 }

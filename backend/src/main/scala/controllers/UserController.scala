@@ -36,6 +36,8 @@ class UserController @Inject()(
     case UnknownUser => NotFound
     case Failure(e)  => log.error("", e); Forbidden(e.getMessage)
     case Done        => Ok
+    case Left(err)   => InternalServerError
+    case Right(value: T) => Ok(fn(value))
     case value: T    => Ok(fn(value))
   } recover {
     case NonFatal(e) => log.error("", e); InternalServerError
