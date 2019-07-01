@@ -19,7 +19,6 @@ class PassaySecretValidator extends SecretValidator {
     new CharacterRule(EnglishCharacterData.UpperCase, 3),
     new CharacterRule(EnglishCharacterData.LowerCase, 3),
     new CharacterRule(EnglishCharacterData.Digit    , 2),
-    new CharacterRule(EnglishCharacterData.Special  , 2)
   )
 
   val validateRules = Seq(

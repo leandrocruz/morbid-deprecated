@@ -272,16 +272,41 @@ class SingleUserSupervisor (
     }
   }
 
-  def authenticate(password: String) =
-    if("crash" == password) {
-      throw new Exception("crash")
-    } else {
-      user.password map {
-        checkPassword(password)
-      } getOrElse {
-        Failure { new Exception("No Password Available") }
-      }
+  def createNewPassword(replacement: String) = {
+    val passwords = stores.passwords()
+    val token     = services.rnd().generate(32)
+    passwords create CreatePasswordRequest(user.id, "sha256", replacement.sha256(), token)
+  }
+
+  def changePassword(old: String, replacement: String): Future[Either[Violation, Done.type]] = {
+    val pwd = user.password.get
+    checkPassword(old)(pwd) match {
+      case Left(PasswordMismatch) => Left(PasswordMismatch).successful()
+      case _ =>
+        //TODO: check if replacement is the same as the 3 last passwords
+        val same   = old == replacement
+        val strong = services.secrets().validate(replacement)
+
+        if (same)         Left(PasswordAlreadyUsed) .successful()
+        else if (!strong) Left(PasswordTooWeak)     .successful()
+        else              EitherT(createNewPassword(replacement)) map {
+          pwd =>
+            /* Ouch! This is ugly */ user = user.copy(password = Some(pwd))
+            Done
+        } value
     }
+  }
+
+    def authenticate(password: String) =
+      if("crash" == password) {
+        throw new Exception("crash")
+      } else {
+        user.password map {
+          checkPassword(password)
+        } getOrElse {
+          Left(NoPasswordAvailable)
+        }
+      }
 
   def resetPasswordFor(username: String): Future[Any] = {
     Future.successful("ok")
@@ -302,24 +327,6 @@ class SingleUserSupervisor (
       .permissions()
       .create(AssignPermissionRequest(user.id, permission))
       .map(_.map(update))
-
-
-  def changePassword(old: String, replacement: String): Future[Either[Violation, Done.type]] = {
-    val pwd = user.password.get
-    checkPassword(old)(pwd) match {
-      case Left(PasswordMismatch) => Left(PasswordMismatch).successful()
-      case _ =>
-        //TODO: check if replacement is the same as the 3 last passwords
-        //TODO: check if replacement is strong enough
-
-        val same   = old == replacement
-        val strong = services.secrets().validate(replacement)
-
-        if(same)         Left(PasswordAlreadyUsed)  .successful()
-        else if(!strong) Left(PasswordTooWeak)      .successful()
-        else             Left(NotImplemented)       .successful()
-    }
-  }
 
 
   override def receive = {

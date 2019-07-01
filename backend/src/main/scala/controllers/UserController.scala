@@ -68,7 +68,7 @@ class UserController @Inject()(
 
   def login() = Action.async (parse.json) { implicit r =>
     validateThen[AuthenticateRequest] { req =>
-      toJson[Success[Token]](tk => Json.toJson(tk.get)) {
+      toJson[Token](tk => Json.toJson(tk)) {
         inquire(actors.users()) { req }
       }
     }

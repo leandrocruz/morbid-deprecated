@@ -6,6 +6,7 @@ import store.violations._
 trait Violation
 
 object violations {
+  case object NoPasswordAvailable extends Violation
   case object PasswordAlreadyUsed extends Violation
   case object PasswordTooWeak     extends Violation
   case object PasswordTooOld      extends Violation
