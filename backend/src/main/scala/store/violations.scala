@@ -10,7 +10,10 @@ object violations {
   case class ForeignKeyViolation          (t: Throwable) extends Violation
   case class UniqueViolation              (t: Throwable) extends Violation
   case class IntegrityConstraintViolation (t: Throwable) extends Violation
+  case object PasswordTooOld    extends Violation
+  case object PasswordMismatch  extends Violation
 }
+
 
 object Violations {
   /*

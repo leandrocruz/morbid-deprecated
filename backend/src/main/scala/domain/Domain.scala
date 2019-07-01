@@ -70,7 +70,7 @@ class UserWithAccount(
 case class AuthenticateRequest(username: String, password: String)
 case class CreateAccountRequest(name: String, `type`: String)
 case class CreateUserRequest(account: Long, username: String, password: Option[String], email: String, `type`: String)
-case class CreatePasswordRequest(user: Long, method: String, password: String, token: String)
+case class CreatePasswordRequest(user: Long, method: String, password: String, token: String, forceUpdate: Boolean = false)
 case class ResetPasswordRequest(username: Option[String], email: Option[String])
 case class RefreshUserRequest(user: Long)
 case class AssignPermissionRequest(user: Long, permission: String)

@@ -5,12 +5,15 @@ import java.time.temporal.ChronoUnit
 import java.util.Date
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, ReceiveTimeout, Timers}
+import cats.data.EitherT
+import cats.implicits._
 import domain._
 import domain.collections._
 import domain.tuples._
 import play.api.Configuration
 import services.{AppServices, TokenGenerator}
 import slick.jdbc.PostgresProfile.api._
+import store.violations._
 import xingu.commons.play.akka.XinguActor
 import xingu.commons.utils._
 
@@ -19,10 +22,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.control.NonFatal
-import scala.util.{Either, Failure, Success, Try}
-import cats.data.EitherT
-import cats.implicits._
-import store.violations._
+import scala.util.{Either, Failure}
 
 trait Users extends ObjectStore[User, CreateUserRequest] {
   def byToken(it: String)          : Future[Option[User]]
@@ -180,29 +180,17 @@ class UsersSupervisor (
     }
 
 
-  def validatePassword(it: CreateUserRequest): Future[Try[String]] = Future.successful {
-    it
-      .password
-      .map { pwd =>
-        if(services.secrets().validate(pwd)) Success(pwd) else Failure(new Exception("Weak Password"))
-      }
-      .getOrElse {
-        val generated = services.secrets().generate(16)
-        Success(generated)
-      }
-  }
-
-  def create(req: CreateUserRequest, same: Option[User], password: Try[String]): Future[Either[Violation, User]] =
-    (same, password) match {
-      case (Some(_), _)         => Left(UniqueViolation(new Exception("User Already Exists"))).successful()
-      case (_, Failure(e))      => Left(Violations.of(e)).successful()
-      case (_, Success(strong)) =>
-        val token  = services.rnd().generate(32)
-        val xx = for {
+  def create(req: CreateUserRequest, same: Option[User]): Future[Either[Violation, User]] =
+    same match {
+      case Some(_)  => Left(UniqueViolation(new Exception("User Already Exists"))).successful()
+      case None     =>
+        val token    = services.rnd().generate(32)
+        val password = services.secrets().generate(16)
+        val it = for {
           u <- EitherT(users     create req)
-          p <- EitherT(passwords create CreatePasswordRequest(u.id, "sha256", strong.sha256(), token))
-        } yield u.copy(password = Some(p.copy(password = strong, method = "plain")))
-        xx.value
+          p <- EitherT(passwords create CreatePasswordRequest(u.id, "sha256", password.sha256(), token, forceUpdate = true))
+        } yield u.copy(password = Some(p.copy(password = password, method = "plain")))
+        it.value
     }
 
   override def receive = {
@@ -226,9 +214,8 @@ class UsersSupervisor (
     case it : CreateUserRequest =>
       to(sender()) {
         for {
-          pwd  <- validatePassword(it)
           same <- users.byUsername(it.username)
-          user <- create(it, same, pwd)
+          user <- create(it, same)
         } yield user
       }
 
@@ -269,13 +256,15 @@ class SingleUserSupervisor (
     services.clock().instant().minus(daysAgo)
   }
 
-  def checkPassword(provided: String)(password: Password): Try[Token] = {
-    if(password.created.before(passwordLifetimeLimit())) {
-      Failure { new Exception("Password Too Old") }
-    } else if (provided.sha256 == password.password)
-      Success { tokens.createToken(issuer, password.token, expiresIn) }
-    else
-      Failure { new Exception("Password Mismatch") }
+  def checkPassword(provided: String)(password: Password): Either[Violation, Token] = {
+    val old  = password.created.before(passwordLifetimeLimit())
+    val same = provided.sha256 == password.password
+
+    (old, same) match {
+      case (_, false)    => Left(PasswordMismatch)
+      case (true , true) => Left(PasswordTooOld)
+      case (false, true) => Right(tokens.createToken(issuer, password.token, expiresIn))
+    }
   }
 
   def authenticate(password: String) =
