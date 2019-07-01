@@ -22,14 +22,12 @@ class ControllerSupport (services: AppServices) extends InjectedController with 
 
 
   def handle[R](it: Any)(implicit writer: Writes[R]): Result = it match {
-    case Right(resource: R) =>
-      Ok(Json.toJson(resource))
-    case Left(violation) =>
-      violation match {
-        case UniqueViolation(e)     => log.error("UniqueViolation", e)     ; Conflict("UniqueViolation")
-        case ForeignKeyViolation(e) => log.error("ForeignKeyViolation", e) ; BadRequest("ForeignKeyViolation")
-        case UnknownViolation(e)    => log.error("UnknownViolation", e)    ; InternalServerError("UnknownViolation")
-      }
+    case Right(resource: R) => Ok(Json.toJson(resource))
+    case Left(violation)    => violation match {
+      case ForeignKeyViolation(e) => log.error("ForeignKeyViolation", e) ; PreconditionFailed("ForeignKeyViolation")
+      case UniqueViolation(e)     => log.error("UniqueViolation", e)     ; Conflict("UniqueViolation")
+      case UnknownViolation(e)    => log.error("UnknownViolation", e)    ; InternalServerError("UnknownViolation")
+    }
   }
 
   def createResource[RESOURCE, CREATE](actor: ActorRef)(implicit req: Request[JsValue], writer: Writes[RESOURCE], reader: Reads[CREATE]): Future[Result] =
