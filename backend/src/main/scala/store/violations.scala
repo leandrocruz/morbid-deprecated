@@ -6,12 +6,15 @@ import store.violations._
 trait Violation
 
 object violations {
-  case class UnknownViolation             (t: Throwable) extends Violation
-  case class ForeignKeyViolation          (t: Throwable) extends Violation
-  case class UniqueViolation              (t: Throwable) extends Violation
-  case class IntegrityConstraintViolation (t: Throwable) extends Violation
-  case object PasswordTooOld    extends Violation
-  case object PasswordMismatch  extends Violation
+  case object PasswordAlreadyUsed extends Violation
+  case object PasswordTooWeak     extends Violation
+  case object PasswordTooOld      extends Violation
+  case object PasswordMismatch    extends Violation
+  case object NotImplemented      extends Violation
+  case class  UnknownViolation             (t: Throwable) extends Violation
+  case class  ForeignKeyViolation          (t: Throwable) extends Violation
+  case class  UniqueViolation              (t: Throwable) extends Violation
+  case class  IntegrityConstraintViolation (t: Throwable) extends Violation
 }
 
 

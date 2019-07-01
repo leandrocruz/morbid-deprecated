@@ -225,6 +225,9 @@ class UsersSupervisor (
     case it @ RefreshUserRequest(id) =>
       fw(it, byId.get(id), users.byId(id))
 
+    case it @ ChangePasswordRequest(username, _, _) =>
+      fw(it, byUsername.get(username), users.byUsername(username))
+
     case any =>
       log.error(s"Can't handle $any")
   }
@@ -241,6 +244,8 @@ class SingleUserSupervisor (
   services : AppServices,
   tokens   : TokenGenerator,
   stores   : Stores) extends Actor with ActorLogging with XinguActor {
+
+  import domain.Done
 
   implicit val ec  = services.ec()
   val conf         = services.conf().get[Configuration] ("passwords")
@@ -292,20 +297,40 @@ class SingleUserSupervisor (
     Done
   }
 
-  def assignPermission(permission: String) =
+  def assignPermission(permission: String): Future[Either[Violation, Done.type]] =
     stores
       .permissions()
       .create(AssignPermissionRequest(user.id, permission))
       .map(_.map(update))
 
+
+  def changePassword(old: String, replacement: String): Future[Either[Violation, Done.type]] = {
+    val pwd = user.password.get
+    checkPassword(old)(pwd) match {
+      case Left(PasswordMismatch) => Left(PasswordMismatch).successful()
+      case _ =>
+        //TODO: check if replacement is the same as the 3 last passwords
+        //TODO: check if replacement is strong enough
+
+        val same   = old == replacement
+        val strong = services.secrets().validate(replacement)
+
+        if(same)         Left(PasswordAlreadyUsed)  .successful()
+        else if(!strong) Left(PasswordTooWeak)      .successful()
+        else             Left(NotImplemented)       .successful()
+    }
+  }
+
+
   override def receive = {
-    case ReceiveTimeout                          => decommission(None)
-    case RefreshUserRequest(_)                   => decommission(Some(sender))
-    case AuthenticateRequest(_, password)        => sender ! authenticate(password)
-    case GetByToken(_)                           => sender ! user
-    case GetById(_)                              => sender ! user
-    case ResetPasswordRequest(Some(username), _) => to(sender) { resetPasswordFor(username)   }
-    case AssignPermissionRequest(_, permission)  => to(sender) { assignPermission(permission) }
-    case any                                     => log.error(s"Can't handle $any")
+    case ReceiveTimeout                             => decommission(None)
+    case RefreshUserRequest(_)                      => decommission(Some(sender))
+    case AuthenticateRequest(_, password)           => sender ! authenticate(password)
+    case GetByToken(_)                              => sender ! user
+    case GetById(_)                                 => sender ! user
+    case ResetPasswordRequest(Some(username), _)    => to(sender) { resetPasswordFor(username)       }
+    case AssignPermissionRequest(_, permission)     => to(sender) { assignPermission(permission)     }
+    case ChangePasswordRequest(_, old, replacement) => to(sender) { changePassword(old, replacement) }
+    case any                                        => log.error(s"Can't handle $any")
   }
 }
