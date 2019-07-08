@@ -1,6 +1,7 @@
 package store
 
 import java.sql.Timestamp
+import java.time.Instant
 import java.util.Date
 
 import domain._
@@ -9,6 +10,7 @@ import services.{AppServices, TokenGenerator}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Future
+import scala.util.control.NonFatal
 
 trait Passwords extends ObjectStore[Password, CreatePasswordRequest] {}
 
@@ -18,9 +20,11 @@ class DatabasePasswords (services: AppServices, db: Database, tokens: TokenGener
 
   override def byId(id: Long) : Future[Option[Password]] = Future.failed(new Exception("TODO"))
 
-  override def create(request: CreatePasswordRequest) : Future[Password] = {
-    val instant = services.clock().instant()
+  override def create(request: CreatePasswordRequest) : Future[Either[Violation, Password]] = {
+
+    val instant = if(request.forceUpdate) Instant.EPOCH else services.clock().instant()
     val created = new Timestamp(instant.toEpochMilli)
+
     db.run {
       (secrets returning secrets.map(_.id)) += (
         0l,
@@ -32,7 +36,8 @@ class DatabasePasswords (services: AppServices, db: Database, tokens: TokenGener
         request.token
       )
     } map { id =>
-      Password(
+      Right(
+        Password(
         id        = id,
         user      = request.user,
         created   = Date.from(instant),
@@ -40,7 +45,9 @@ class DatabasePasswords (services: AppServices, db: Database, tokens: TokenGener
         method    = request.method,
         password  = request.password,
         token     = request.token
-      )
+      ))
+    } recover {
+      case NonFatal(e) => Left(Violations.of(e))
     }
   }
 }

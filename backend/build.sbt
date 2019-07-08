@@ -19,6 +19,7 @@ libraryDependencies ++= Seq(
   guice,
   ws,
   filters,
+  "org.typelevel"      %% "cats-core"      % "1.6.0",
   "org.passay"         %  "passay"         % "1.4.0",
   "org.apache.commons" %  "commons-text"   % "1.6",
   "com.chuusai"        %% "shapeless"      % "2.3.3",

@@ -7,9 +7,9 @@ import play.api.libs.json._
 import play.api.mvc.Result
 import services.{AppServices, TokenGenerator}
 import shapeless.TypeCase
-import store.{RootActors, Stores}
-import xingu.commons.utils._
+import store.{RootActors, Stores, Violation}
 import xingu.commons.play.akka.utils._
+import xingu.commons.utils._
 
 import scala.concurrent.Future
 import scala.util.control.NonFatal
@@ -33,10 +33,12 @@ class UserController @Inject()(
   def toResult[T](fut: Future[Any]): Future[Result] = toJson(skip) { fut }
 
   def toJson[T](fn: T => JsValue)(fut: Future[Any]): Future[Result] = fut map {
-    case UnknownUser => NotFound
-    case Failure(e)  => log.error("", e); Forbidden(e.getMessage)
-    case Done        => Ok
-    case value: T    => Ok(fn(value))
+    case Left(v: Violation) => violationToResult(v)
+    case UnknownUser        => NotFound("UnknownUser")
+    case Failure(e)         => log.error("Error", e); Forbidden(e.getMessage)
+    case Right(value: T)    => Ok(fn(value))
+    case value: T           => Ok(fn(value))
+    case Done               => Ok
   } recover {
     case NonFatal(e) => log.error("", e); InternalServerError
   }
@@ -59,7 +61,7 @@ class UserController @Inject()(
 
   def login() = Action.async (parse.json) { implicit r =>
     validateThen[AuthenticateRequest] { req =>
-      toJson[Success[Token]](tk => Json.toJson(tk.get)) {
+      toJson[Token](tk => Json.toJson(tk)) {
         inquire(actors.users()) { req }
       }
     }
@@ -84,7 +86,13 @@ class UserController @Inject()(
     }
   }
 
-  def changePassword() = Action(Ok)
+  def changePassword() = Action.async(parse.json) { implicit r =>
+    validateThen[ChangePasswordRequest] { req =>
+      toResult {
+        inquire(actors.users()) { req }
+      }
+    }
+  }
 
   def assignPermission() = Action.async(parse.json) { implicit r =>
     validateThen[AssignPermissionRequest] { req =>

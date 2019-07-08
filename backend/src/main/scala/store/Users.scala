@@ -5,12 +5,15 @@ import java.time.temporal.ChronoUnit
 import java.util.Date
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, ReceiveTimeout, Timers}
+import cats.data.EitherT
+import cats.implicits._
 import domain._
 import domain.collections._
 import domain.tuples._
 import play.api.Configuration
 import services.{AppServices, TokenGenerator}
 import slick.jdbc.PostgresProfile.api._
+import store.violations._
 import xingu.commons.play.akka.XinguActor
 import xingu.commons.utils._
 
@@ -19,7 +22,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.control.NonFatal
-import scala.util.{Failure, Success, Try}
+import scala.util.{Either, Failure}
 
 trait Users extends ObjectStore[User, CreateUserRequest] {
   def byToken(it: String)          : Future[Option[User]]
@@ -80,7 +83,7 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
     secret.map(value => value.token === it && value.deleted.isEmpty) getOrElse false
   }
 
-  override def create(request: CreateUserRequest): Future[User] = {
+  override def create(request: CreateUserRequest): Future[Either[Violation, User]] = {
     val instant = services.clock().instant()
     val created = new Timestamp(instant.toEpochMilli)
 
@@ -96,17 +99,21 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
         request.`type`
       )
     } map { id =>
-      User(
-        id          = id,
-        account     = None,
-        created     = Date.from(instant),
-        deleted     = None,
-        active      = true,
-        username    = request.username,
-        email       = request.email,
-        `type`      = request.`type`,
-        password    = None,
-        permissions = None)
+      Right(
+        User(
+          id          = id,
+          account     = None,
+          created     = Date.from(instant),
+          deleted     = None,
+          active      = true,
+          username    = request.username,
+          email       = request.email,
+          `type`      = request.`type`,
+          password    = None,
+          permissions = None
+      ))
+    } recover {
+      case NonFatal(e) => Left(Violations.of(e))
     }
   }
 }
@@ -173,28 +180,17 @@ class UsersSupervisor (
     }
 
 
-  def validatePassword(it: CreateUserRequest): Future[Try[String]] = Future.successful {
-    it
-      .password
-      .map { pwd =>
-        if(services.secrets().validate(pwd)) Success(pwd) else Failure(new Exception("Weak Password"))
-      }
-      .getOrElse {
-        val generated = services.secrets().generate(16)
-        Success(generated)
-      }
-  }
-
-  def create(req: CreateUserRequest, same: Option[User], password: Try[String]): Future[Any] =
-    (same, password) match {
-      case (Some(_), _)         => ResourceAlreadyExists.successful()
-      case (_, Failure(e))      => Failure(e).successful()
-      case (_, Success(strong)) =>
-        val token  = services.rnd().generate(32)
-        for {
-          u <- users     create req
-          p <- passwords create CreatePasswordRequest(u.id, "sha256", strong.sha256(), token)
-        } yield u.copy(password = Some(p.copy(password = strong, method = "plain")))
+  def create(req: CreateUserRequest, same: Option[User]): Future[Either[Violation, User]] =
+    same match {
+      case Some(_)  => Left(UniqueViolation(new Exception("User Already Exists"))).successful()
+      case None     =>
+        val token    = services.rnd().generate(32)
+        val password = services.secrets().generate(16)
+        val it = for {
+          u <- EitherT(users     create req)
+          p <- EitherT(passwords create CreatePasswordRequest(u.id, "sha256", password.sha256(), token, forceUpdate = true))
+        } yield u.copy(password = Some(p.copy(password = password, method = "plain")))
+        it.value
     }
 
   override def receive = {
@@ -218,9 +214,8 @@ class UsersSupervisor (
     case it : CreateUserRequest =>
       to(sender()) {
         for {
-          pwd  <- validatePassword(it)
           same <- users.byUsername(it.username)
-          user <- create(it, same, pwd)
+          user <- create(it, same)
         } yield user
       }
 
@@ -229,6 +224,9 @@ class UsersSupervisor (
 
     case it @ RefreshUserRequest(id) =>
       fw(it, byId.get(id), users.byId(id))
+
+    case it @ ChangePasswordRequest(username, _, _) =>
+      fw(it, byUsername.get(username), users.byUsername(username))
 
     case any =>
       log.error(s"Can't handle $any")
@@ -247,6 +245,8 @@ class SingleUserSupervisor (
   tokens   : TokenGenerator,
   stores   : Stores) extends Actor with ActorLogging with XinguActor {
 
+  import domain.Done
+
   implicit val ec  = services.ec()
   val conf         = services.conf().get[Configuration] ("passwords")
   val expiresIn    = Some(conf.get[Duration]            ("tokens.expiresIn"))
@@ -261,25 +261,52 @@ class SingleUserSupervisor (
     services.clock().instant().minus(daysAgo)
   }
 
-  def checkPassword(provided: String)(password: Password): Try[Token] = {
-    if(password.created.before(passwordLifetimeLimit())) {
-      Failure { new Exception("Password Too Old") }
-    } else if (provided.sha256 == password.password)
-      Success { tokens.createToken(issuer, password.token, expiresIn) }
-    else
-      Failure { new Exception("Password Mismatch") }
+  def checkPassword(provided: String)(password: Password): Either[Violation, Token] = {
+    val old  = password.created.before(passwordLifetimeLimit())
+    val same = provided.sha256 == password.password
+
+    (old, same) match {
+      case (_, false)    => Left(PasswordMismatch)
+      case (true , true) => Left(PasswordTooOld)
+      case (false, true) => Right(tokens.createToken(issuer, password.token, expiresIn))
+    }
   }
 
-  def authenticate(password: String) =
-    if("crash" == password) {
-      throw new Exception("crash")
-    } else {
-      user.password map {
-        checkPassword(password)
-      } getOrElse {
-        Failure { new Exception("No Password Available") }
-      }
+  def createNewPassword(replacement: String) = {
+    val passwords = stores.passwords()
+    val token     = services.rnd().generate(32)
+    passwords create CreatePasswordRequest(user.id, "sha256", replacement.sha256(), token)
+  }
+
+  def changePassword(old: String, replacement: String): Future[Either[Violation, Done.type]] = {
+    val pwd = user.password.get
+    checkPassword(old)(pwd) match {
+      case Left(PasswordMismatch) => Left(PasswordMismatch).successful()
+      case _ =>
+        //TODO: check if replacement is the same as the 3 last passwords
+        val same   = old == replacement
+        val strong = services.secrets().validate(replacement)
+
+        if (same)         Left(PasswordAlreadyUsed) .successful()
+        else if (!strong) Left(PasswordTooWeak)     .successful()
+        else              EitherT(createNewPassword(replacement)) map {
+          pwd =>
+            /* Ouch! This is ugly */ user = user.copy(password = Some(pwd))
+            Done
+        } value
     }
+  }
+
+    def authenticate(password: String) =
+      if("crash" == password) {
+        throw new Exception("crash")
+      } else {
+        user.password map {
+          checkPassword(password)
+        } getOrElse {
+          Left(NoPasswordAvailable)
+        }
+      }
 
   def resetPasswordFor(username: String): Future[Any] = {
     Future.successful("ok")
@@ -295,20 +322,22 @@ class SingleUserSupervisor (
     Done
   }
 
-  def assignPermission(permission: String) =
+  def assignPermission(permission: String): Future[Either[Violation, Done.type]] =
     stores
       .permissions()
       .create(AssignPermissionRequest(user.id, permission))
-      .map(update)
+      .map(_.map(update))
+
 
   override def receive = {
-    case ReceiveTimeout                          => decommission(None)
-    case RefreshUserRequest(_)                   => decommission(Some(sender))
-    case AuthenticateRequest(_, password)        => sender ! authenticate(password)
-    case GetByToken(_)                           => sender ! user
-    case GetById(_)                              => sender ! user
-    case ResetPasswordRequest(Some(username), _) => to(sender) { resetPasswordFor(username)   }
-    case AssignPermissionRequest(_, permission)  => to(sender) { assignPermission(permission) }
-    case any                                     => log.error(s"Can't handle $any")
+    case ReceiveTimeout                             => decommission(None)
+    case RefreshUserRequest(_)                      => decommission(Some(sender))
+    case AuthenticateRequest(_, password)           => sender ! authenticate(password)
+    case GetByToken(_)                              => sender ! user
+    case GetById(_)                                 => sender ! user
+    case ResetPasswordRequest(Some(username), _)    => to(sender) { resetPasswordFor(username)       }
+    case AssignPermissionRequest(_, permission)     => to(sender) { assignPermission(permission)     }
+    case ChangePasswordRequest(_, old, replacement) => to(sender) { changePassword(old, replacement) }
+    case any                                        => log.error(s"Can't handle $any")
   }
 }

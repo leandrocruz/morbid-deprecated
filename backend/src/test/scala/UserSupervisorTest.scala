@@ -5,7 +5,6 @@ import java.util.Date
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}
 import domain._
-import domain.utils._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, FlatSpecLike, Matchers}
 import services.TokenGenerator
 import store.{Passwords, Stores, Users, UsersSupervisor}
@@ -13,6 +12,7 @@ import store.{Passwords, Stores, Users, UsersSupervisor}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.Failure
+import xingu.commons.utils._
 
 class UserSupervisorTest extends TestKit(ActorSystem("UserSupervisorTest", AkkaTestHelper.simpleConfig()))
   with ImplicitSender
@@ -47,13 +47,13 @@ class UserSupervisorTest extends TestKit(ActorSystem("UserSupervisorTest", AkkaT
   }
 
   it should "return a 'User' for a known user" in {
-
+    val account   = Account(1, new Date(), None, active = true, "acc", "regular")
     val tokens    = mock[TokenGenerator]
     val services  = mockServices(system)
     val users     = mock[Users]
     val passwords = mock[Passwords]
     val stores    = mock[Stores]
-    val user      = User(1, 1, new Date(), None, active = true, "username", "email", "type", None)
+    val user      = User(1, Some(account), new Date(), None, active = true, "username", "email", "type", None, None)
 
     (stores.users     _)  .expects()      .returning(users)                   .once()
     (stores.passwords _)  .expects()      .returning(passwords)               .once()
@@ -68,22 +68,23 @@ class UserSupervisorTest extends TestKit(ActorSystem("UserSupervisorTest", AkkaT
   }
 
   it should "create a new user without password" in {
+    val account     = Account(1, new Date(), None, active = true, "acc", "regular")
     val tokens     = mock[TokenGenerator]
     val services   = mockServices(system)
     val users      = mock[Users]
     val passwords  = mock[Passwords]
     val stores     = mock[Stores]
     val now        = Date.from(services.clock().instant())
-    val user       = User(1, 1, now, None, active = true, "username", "email", "type", None)
-    val request    = CreateUserRequest(user.account, user.username, None, user.email, user.`type`)
+    val user       = User(1, Some(account), now, None, active = true, "username", "email", "type", None, None)
+    val request    = CreateUserRequest(account.id, user.username, None, user.email, user.`type`)
     val password   = Password(1, 1, now, null, "sha256", "rnd16", "rnd32")
     val pwdRequest = CreatePasswordRequest(user.id, "sha256", "rnd16".sha256(), "rnd32")
 
     (stores.users     _)  .expects()                .returning(users)                 .once()
     (stores.passwords _)  .expects()                .returning(passwords)             .once()
     (users.byUsername _)  .expects("username")  .returning(None.successful())     .once()
-    (users.create     _)  .expects(request)         .returning(user.successful())     .once()
-    (passwords.create _)  .expects(pwdRequest)      .returning(password.successful()) .once()
+    (users.create     _)  .expects(request)         .returning(Right(user).successful())     .once()
+    (passwords.create _)  .expects(pwdRequest)      .returning(Right(password).successful()) .once()
 
     services.secrets().generate _ expects 16 returning "rnd16" once()
     services.rnd().generate     _ expects 32 returning "rnd32" once()
@@ -96,22 +97,23 @@ class UserSupervisorTest extends TestKit(ActorSystem("UserSupervisorTest", AkkaT
   }
 
   it should "create a new user with strong password" in {
+    val account    = Account(1, new Date(), None, active = true, "acc", "regular")
     val tokens     = mock[TokenGenerator]
     val services   = mockServices(system)
     val users      = mock[Users]
     val passwords  = mock[Passwords]
     val stores     = mock[Stores]
     val now        = Date.from(services.clock().instant())
-    val user       = User(1, 1, now, None, active = true, "username", "email", "type", None)
-    val request    = CreateUserRequest(user.account, user.username, Some("strong"), user.email, user.`type`)
+    val user       = User(1, Some(account), now, None, active = true, "username", "email", "type", None, None)
+    val request    = CreateUserRequest(account.id, user.username, Some("strong"), user.email, user.`type`)
     val password   = Password(1, 1, now, null, "sha256", "strong", "rnd32")
     val pwdRequest = CreatePasswordRequest(user.id, "sha256", "strong".sha256(), "rnd32")
 
     (stores.users     _)  .expects()                .returning(users)                 .once()
     (stores.passwords _)  .expects()                .returning(passwords)             .once()
     (users.byUsername _)  .expects("username")  .returning(None.successful())     .once()
-    (users.create     _)  .expects(request)         .returning(user.successful())     .once()
-    (passwords.create _)  .expects(pwdRequest)      .returning(password.successful()) .once()
+    (users.create     _)  .expects(request)         .returning(Right(user).successful())     .once()
+    (passwords.create _)  .expects(pwdRequest)      .returning(Right(password).successful()) .once()
 
     services.secrets().validate _ expects "strong" returning true once()
     services.secrets().generate _ expects 16 never()
@@ -125,14 +127,15 @@ class UserSupervisorTest extends TestKit(ActorSystem("UserSupervisorTest", AkkaT
   }
 
   it should "create a new user with weak password" in {
+    val account    = Account(1, new Date(), None, active = true, "acc", "regular")
     val tokens     = mock[TokenGenerator]
     val services   = mockServices(system)
     val users      = mock[Users]
     val passwords  = mock[Passwords]
     val stores     = mock[Stores]
     val now        = Date.from(services.clock().instant())
-    val user       = User(1, 1, now, None, active = true, "username", "email", "type", None)
-    val request    = CreateUserRequest(user.account, user.username, Some("weak"), user.email, user.`type`)
+    val user       = User(1, Some(account), now, None, active = true, "username", "email", "type", None, None)
+    val request    = CreateUserRequest(user.account.get.id, user.username, Some("weak"), user.email, user.`type`)
 
     (stores.users     _)  .expects()                .returning(users)                 .once()
     (stores.passwords _)  .expects()                .returning(passwords)             .once()

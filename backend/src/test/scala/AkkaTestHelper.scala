@@ -5,7 +5,8 @@ import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
 import org.scalamock.scalatest.MockFactory
 import play.api.{Configuration, Environment}
-import services.{BasicServices, Random, SecretValidator, Services}
+import services.{AppServices, AppServicesImpl, Random, SecretValidator}
+import xingu.commons.play.services.Services
 
 object AkkaTestHelper {
   def simpleConfig() = ConfigFactory.parseString(
@@ -23,7 +24,7 @@ trait AkkaTestHelper extends MockFactory {
     clock
   }
 
-  def mockServices(system: ActorSystem): Services = {
+  def mockServices(system: ActorSystem): AppServices = {
     val conf = ConfigFactory.parseString(
       """
         |passwords = {
@@ -37,13 +38,13 @@ trait AkkaTestHelper extends MockFactory {
         |}
       """.stripMargin)
 
-    new BasicServices(
-      random           = mock[Random],
-      environment      = mock[Environment],
-      secretValidator  = mock[SecretValidator],
-      theClock         = newClock(),
-      config           = Configuration(conf),
-      executionContext = system.dispatcher,
-      system           = system)
+    new AppServicesImpl(
+      ec        = system.dispatcher,
+      random    = mock[Random],
+      env       = mock[Environment],
+      clock     = newClock(),
+      config    = Configuration(conf),
+      validator = mock[SecretValidator],
+      system    = system)
   }
 }

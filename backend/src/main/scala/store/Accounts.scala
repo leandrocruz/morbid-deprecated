@@ -9,6 +9,7 @@ import services.AppServices
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Future
+import scala.util.control.NonFatal
 
 trait Accounts extends ObjectStore[Account, CreateAccountRequest] {}
 
@@ -36,7 +37,7 @@ class DatabaseAccounts (services: AppServices, db: Database) extends Accounts {
     }
 
 
-  override def create(request: CreateAccountRequest): Future[Account] = {
+  override def create(request: CreateAccountRequest): Future[Either[Violation, Account]] = {
     val instant = services.clock().instant()
     val created = new Timestamp(instant.toEpochMilli)
     val result  = db.run {
@@ -51,13 +52,17 @@ class DatabaseAccounts (services: AppServices, db: Database) extends Accounts {
     }
 
     result map { id =>
-      Account(
-        id      = id,
-        created = Date.from(instant),
-        deleted = None,
-        active  = true,
-        name    = request.name,
-        `type`  = request.`type`)
+      Right(
+        Account(
+          id      = id,
+          created = Date.from(instant),
+          deleted = None,
+          active  = true,
+          name    = request.name,
+          `type`  = request.`type`
+      ))
+    } recover {
+      case NonFatal(e) => Left(Violations.of(e))
     }
   }
 }
