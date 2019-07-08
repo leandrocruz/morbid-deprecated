@@ -25,20 +25,36 @@ abstract class HttpMorbidClientSupport (
 
   val client = new OkHttpClient()
 
+  def unauthorized(body: String) = body match {
+    case "PasswordTooOld"      => Left(PasswordTooOld)
+    case "NoPasswordAvailable" => Left(NoPasswordAvailable)
+  }
+
+  def badRequest(body: String) = body match {
+    case "PasswordAlreadyUsed"          => Left(PasswordAlreadyUsed)
+    case "PasswordTooWeak"              => Left(PasswordTooOld)
+    case "UniqueViolation"              => Left(UniqueViolation(new Exception("See server log for details")))
+    case "ForeignKeyViolation"          => Left(ForeignKeyViolation(new Exception("See server log for details")))
+    case "IntegrityConstraintViolation" => Left(IntegrityConstraintViolation(new Exception("See server log for details")))
+  }
+
+  def internalServerError(body: String) =
+    Left(UnknownViolation(new Exception(body)))
+
+  def forbidden(body: String) =
+    Left(PasswordMismatch)
+
   def handleViolation[T](fn: String => Either[Violation, T])(request: Request) =
     Try(client.newCall(request).execute()) match {
       case Failure(e) => Left(UnknownViolation(e))
-      case Success(r) => r.code() match {
-        case 200 => fn(r.body().string())
-        case 400 => r.body().string() match {
-          case "PasswordAlreadyUsed"          => Left(PasswordAlreadyUsed)
-          case "PasswordTooWeak"              => Left(PasswordTooOld)
-          case "UniqueViolation"              => Left(UniqueViolation(new Exception("See server log for details")))
-          case "ForeignKeyViolation"          => Left(ForeignKeyViolation(new Exception("See server log for details")))
-          case "IntegrityConstraintViolation" => Left(IntegrityConstraintViolation(new Exception("See server log for details")))
-        }
-        case 401 => Left(PasswordTooOld)
-        case _   => Left(UnknownViolation(new Exception(r.body().string())))
+      case Success(r) =>
+        val body = r.body().string()
+        r.code() match {
+        case 200 => fn                  (body)
+        case 400 => badRequest          (body)
+        case 401 => unauthorized        (body)
+        case 403 => forbidden           (body)
+        case 500 => internalServerError (body)
       }
     }
 

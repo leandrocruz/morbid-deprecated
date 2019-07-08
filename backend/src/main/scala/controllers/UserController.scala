@@ -36,6 +36,7 @@ class UserController @Inject()(
   def toJson[T](fn: T => JsValue)(fut: Future[Any]): Future[Result] = fut map {
     case Left(v: Violation) => v match {
       case PasswordTooOld                  => Unauthorized("PasswordTooOld")
+      case NoPasswordAvailable             => Unauthorized("NoPasswordAvailable")
       case PasswordMismatch                => Forbidden("PasswordMismatch")
       case PasswordAlreadyUsed             => BadRequest("PasswordAlreadyUsed")
       case PasswordTooWeak                 => BadRequest("PasswordTooWeak")
@@ -44,7 +45,7 @@ class UserController @Inject()(
       case IntegrityConstraintViolation(_) => BadRequest("IntegrityConstraintViolation")
       case _ => log.error(s"Violation: '$v'"); InternalServerError
     }
-    case UnknownUser     => NotFound
+    case UnknownUser     => NotFound("UnknownUser")
     case Failure(e)      => log.error("Error", e); Forbidden(e.getMessage)
     case Right(value: T) => Ok(fn(value))
     case value: T        => Ok(fn(value))
