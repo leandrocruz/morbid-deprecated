@@ -11,10 +11,10 @@ import org.apache.commons.text.StringEscapeUtils.escapeJson
 import okhttp3._
 
 trait MorbidClient {
-  def createAccount (request: CreateAccountRequest) : Future[Either[Violation, Account]]
-  def createUser    (request: CreateUserRequest)    : Future[Either[Violation, User]]
-  def byToken(token: String)                        : Future[Try[User]]
-  def authenticateUser(request: AuthenticateRequest): Future[Either[Violation, Token]]
+  def createAccount    (request: CreateAccountRequest) : Future[Either[Violation, Account]]
+  def createUser       (request: CreateUserRequest)    : Future[Either[Violation, User]]
+  def authenticateUser (request: AuthenticateRequest)  : Future[Either[Violation, Token]]
+  def byToken          (token: String)                 : Future[Try[User]]
 }
 
 abstract class HttpMorbidClientSupport (
@@ -28,6 +28,7 @@ abstract class HttpMorbidClientSupport (
   val SeeServerLog = new Exception("See server log for details")
 
   def error(body: String) = body match {
+    case "UnknownUser"                  => Left(UnknownUser)
     case "PasswordTooOld"               => Left(PasswordTooOld)
     case "PasswordMismatch"             => Left(PasswordMismatch)
     case "NoPasswordAvailable"          => Left(NoPasswordAvailable)
