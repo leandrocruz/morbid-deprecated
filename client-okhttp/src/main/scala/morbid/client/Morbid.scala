@@ -3,17 +3,16 @@ package morbid.client
 import java.net.URLEncoder
 
 import morbid.client.domain._
+import morbid.client.violations._
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Try}
-
+import scala.util.{Failure, Success, Try}
 import org.apache.commons.text.StringEscapeUtils.escapeJson
-
 import okhttp3._
 
 trait MorbidClient {
-  def createAccount (request: CreateAccountRequest) : Future[Try[Account]]
-  def createUser    (request: CreateUserRequest)    : Future[Try[User]]
+  def createAccount (request: CreateAccountRequest) : Future[Either[Violation, Account]]
+  def createUser    (request: CreateUserRequest)    : Future[Either[Violation, User]]
   def byToken(token: String)                        : Future[Try[User]]
   def authenticateUser(request: AuthenticateRequest): Future[Try[Token]]
 }
@@ -26,45 +25,56 @@ abstract class HttpMorbidClientSupport (
 
   val client = new OkHttpClient()
 
-  def handle[T](fn: String => Try[T])(request: Request) =
-    Try {
-      client.newCall(request).execute()
-    } flatMap { resp =>
-      if(resp.isSuccessful) {
-        fn(resp.body().string())
-      } else {
-        Failure(new Exception(s"Not 200: ${resp.code}"))
+  def handleViolation[T](fn: String => Either[Violation, T])(request: Request) =
+    Try(client.newCall(request).execute()) match {
+      case Failure(e) => Left(UnknownViolation(e))
+      case Success(r) => r.code() match {
+        case 200 => fn(r.body().string())
+        case _   => Left(UnknownViolation(new Exception(r.body().string())))
       }
     }
 
+  def handleError[T](fn: String => Try[T])(request: Request) =
+    Try(client.newCall(request).execute()) flatMap { r =>
+      if(r.isSuccessful)
+        fn(r.body().string())
+      else
+        Failure(new Exception("Not 200: "))
+    }
 
-  def get[T](path: String)(fn: String => Try[T]): Future[Try[T]] = Future {
-    handle(fn) {
+  def getRequest(path: String) =
+    new Request.Builder().url(s"$location$path").build
+
+  def postRequest(path: String, body: Option[String]) =
+    body map { it =>
+      new Request.Builder().url(s"$location$path").post(RequestBody.create(it, json)).build
+    } getOrElse {
       new Request.Builder().url(s"$location$path").build
     }
-  }
-
-  def post[T](path: String, body: Option[String])(fn: String => Try[T]): Future[Try[T]] = Future {
-    handle(fn) {
-      body map { it =>
-        new Request.Builder().url(s"$location$path").post(RequestBody.create(it, json)).build
-      } getOrElse {
-        new Request.Builder().url(s"$location$path").build
-      }
-    }
-  }
 
   override def byToken(token: String) =
-    get(s"/user/token/${URLEncoder.encode(token, "utf8")}") { toUser }
+    Future {
+      handleError(toUser) {
+        getRequest(s"/user/token/${URLEncoder.encode(token, "utf8")}")
+      }
+    }
 
   override def authenticateUser(r: AuthenticateRequest) = {
     val body = s"""{"username":"${escapeJson(r.username)}","password":"${escapeJson(r.password)}"}"""
-    post("/user/login", Some(body)) { toToken }
+    Future {
+      handleError(toToken) {
+        postRequest("/user/login", Some(body))
+      }
+    }
   }
 
   override def createAccount(r: CreateAccountRequest) = {
     val body = s"""{"name":"${escapeJson(r.name)}","type":"${escapeJson(r.`type`)}"}"""
-    post("/account", Some(body)) { toAccount }
+    Future {
+      handleViolation(accountOrViolation) {
+        postRequest("/account", Some(body))
+      }
+    }
   }
 
   override def createUser(r: CreateUserRequest) = {
@@ -76,10 +86,15 @@ abstract class HttpMorbidClientSupport (
          |"type"     :"${escapeJson(r.`type`)}"
          |}""".stripMargin.replaceAll("\n", " ")
 
-    post("/user", Some(body)) { toUser }
+    Future {
+      handleViolation(userOrViolation) {
+        postRequest("/user", Some(body))
+      }
+    }
   }
 
-  def toAccount (response: String) : Try[Account]
+  def accountOrViolation (response: String) : Either[Violation, Account]
+  def userOrViolation    (response: String) : Either[Violation, User]
   def toUser    (response: String) : Try[User]
   def toToken   (response: String) : Try[Token]
 }
