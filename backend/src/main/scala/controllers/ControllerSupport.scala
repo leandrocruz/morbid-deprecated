@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory
 import play.api.libs.json._
 import play.api.mvc.{InjectedController, Request, Result}
 import services.AppServices
-import store.ObjectStore
+import store.{ObjectStore, Violation}
 import store.violations._
 import xingu.commons.utils._
 import xingu.commons.play.akka.utils._
@@ -20,15 +20,21 @@ class ControllerSupport (services: AppServices) extends InjectedController with 
   implicit val system = services.actorSystem()
   val log = LoggerFactory.getLogger(getClass)
 
+  def violationToResult(violation: Violation) = violation match {
+    case PasswordMismatch                 =>                             Forbidden            ("PasswordMismatch")
+    case PasswordTooOld                   =>                             Unauthorized         ("PasswordTooOld")
+    case NoPasswordAvailable              =>                             Unauthorized         ("NoPasswordAvailable")
+    case PasswordAlreadyUsed              =>                             PreconditionFailed   ("PasswordAlreadyUsed")
+    case PasswordTooWeak                  =>                             PreconditionFailed   ("PasswordTooWeak")
+    case ForeignKeyViolation          (e) => log.error(s"Violation", e); PreconditionFailed   ("ForeignKeyViolation")
+    case IntegrityConstraintViolation (e) => log.error(s"Violation", e); PreconditionFailed   ("IntegrityConstraintViolation")
+    case UniqueViolation              (e) => log.error(s"Violation", e); Conflict             ("UniqueViolation")
+    case UnknownViolation             (e) => log.error(s"Violation", e); InternalServerError  ("UnknownViolation")
+  }
 
   def handle[R](it: Any)(implicit writer: Writes[R]): Result = it match {
-    case Right(resource: R) => Ok(Json.toJson(resource))
-    case Left(violation)    => violation match {
-      case IntegrityConstraintViolation (e) => log.error("IntegrityConstraintViolation", e) ; PreconditionFailed("IntegrityConstraintViolation")
-      case ForeignKeyViolation          (e) => log.error("ForeignKeyViolation", e)          ; PreconditionFailed("ForeignKeyViolation")
-      case UniqueViolation              (e) => log.error("UniqueViolation", e)              ; Conflict("UniqueViolation")
-      case UnknownViolation             (e) => log.error("UnknownViolation", e)             ; InternalServerError("UnknownViolation")
-    }
+    case Right(resource: R)         => Ok(Json.toJson(resource))
+    case Left(violation: Violation) => violationToResult(violation)
   }
 
   def createResource[RESOURCE, CREATE](actor: ActorRef)(implicit req: Request[JsValue], writer: Writes[RESOURCE], reader: Reads[CREATE]): Future[Result] = {

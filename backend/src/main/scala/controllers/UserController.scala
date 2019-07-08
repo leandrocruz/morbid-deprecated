@@ -7,10 +7,9 @@ import play.api.libs.json._
 import play.api.mvc.Result
 import services.{AppServices, TokenGenerator}
 import shapeless.TypeCase
-import store.violations._
 import store.{RootActors, Stores, Violation}
-import xingu.commons.utils._
 import xingu.commons.play.akka.utils._
+import xingu.commons.utils._
 
 import scala.concurrent.Future
 import scala.util.control.NonFatal
@@ -34,22 +33,12 @@ class UserController @Inject()(
   def toResult[T](fut: Future[Any]): Future[Result] = toJson(skip) { fut }
 
   def toJson[T](fn: T => JsValue)(fut: Future[Any]): Future[Result] = fut map {
-    case Left(v: Violation) => v match {
-      case PasswordTooOld                  => Unauthorized         ("PasswordTooOld")
-      case PasswordMismatch                => Forbidden            ("PasswordMismatch")
-      case NoPasswordAvailable             => Unauthorized         ("NoPasswordAvailable")
-      case PasswordAlreadyUsed             => PreconditionFailed   ("PasswordAlreadyUsed")
-      case PasswordTooWeak                 => PreconditionFailed   ("PasswordTooWeak")
-      case UniqueViolation(_)              => Conflict             ("UniqueViolation")
-      case ForeignKeyViolation(_)          => PreconditionFailed   ("ForeignKeyViolation")
-      case IntegrityConstraintViolation(_) => PreconditionFailed   ("IntegrityConstraintViolation")
-      case _ => log.error(s"Violation: '$v'"); InternalServerError ("UnknownViolation")
-    }
-    case UnknownUser     => NotFound("UnknownUser")
-    case Failure(e)      => log.error("Error", e); Forbidden(e.getMessage)
-    case Right(value: T) => Ok(fn(value))
-    case value: T        => Ok(fn(value))
-    case Done            => Ok
+    case Left(v: Violation) => violationToResult(v)
+    case UnknownUser        => NotFound("UnknownUser")
+    case Failure(e)         => log.error("Error", e); Forbidden(e.getMessage)
+    case Right(value: T)    => Ok(fn(value))
+    case value: T           => Ok(fn(value))
+    case Done               => Ok
   } recover {
     case NonFatal(e) => log.error("", e); InternalServerError
   }
