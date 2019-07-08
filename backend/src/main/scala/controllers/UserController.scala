@@ -7,7 +7,7 @@ import play.api.libs.json._
 import play.api.mvc.Result
 import services.{AppServices, TokenGenerator}
 import shapeless.TypeCase
-import store.violations.{PasswordAlreadyUsed, PasswordMismatch, PasswordTooOld, PasswordTooWeak}
+import store.violations._
 import store.{RootActors, Stores, Violation}
 import xingu.commons.utils._
 import xingu.commons.play.akka.utils._
@@ -34,18 +34,21 @@ class UserController @Inject()(
   def toResult[T](fut: Future[Any]): Future[Result] = toJson(skip) { fut }
 
   def toJson[T](fn: T => JsValue)(fut: Future[Any]): Future[Result] = fut map {
-    case UnknownUser           => NotFound
-    case Failure(e)            => log.error("Error", e); Forbidden(e.getMessage)
-    case Left(v: Violation)    => v match {
-      case PasswordTooOld      => Unauthorized("PasswordTooOld")
-      case PasswordMismatch    => Forbidden("PasswordMismatch")
-      case PasswordAlreadyUsed => BadRequest("PasswordAlreadyUsed")
-      case PasswordTooWeak     => BadRequest("PasswordTooWeak")
-      case _                   => log.error(s"Violation: '$v'"); InternalServerError
+    case Left(v: Violation) => v match {
+      case PasswordTooOld                  => Unauthorized("PasswordTooOld")
+      case PasswordMismatch                => Forbidden("PasswordMismatch")
+      case PasswordAlreadyUsed             => BadRequest("PasswordAlreadyUsed")
+      case PasswordTooWeak                 => BadRequest("PasswordTooWeak")
+      case UniqueViolation(_)              => BadRequest("UniqueViolation")
+      case ForeignKeyViolation(_)          => BadRequest("ForeignKeyViolation")
+      case IntegrityConstraintViolation(_) => BadRequest("IntegrityConstraintViolation")
+      case _ => log.error(s"Violation: '$v'"); InternalServerError
     }
-    case Right(value: T)       => Ok(fn(value))
-    case value: T              => Ok(fn(value))
-    case Done                  => Ok
+    case UnknownUser     => NotFound
+    case Failure(e)      => log.error("Error", e); Forbidden(e.getMessage)
+    case Right(value: T) => Ok(fn(value))
+    case value: T        => Ok(fn(value))
+    case Done            => Ok
   } recover {
     case NonFatal(e) => log.error("", e); InternalServerError
   }
