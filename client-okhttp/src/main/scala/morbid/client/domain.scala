@@ -60,7 +60,7 @@ object domain {
 
   case class User(
     id          : Long,
-    account     : Account,
+    account     : Option[Account],
     created     : Date,
     deleted     : Option[Date],
     active      : Boolean,

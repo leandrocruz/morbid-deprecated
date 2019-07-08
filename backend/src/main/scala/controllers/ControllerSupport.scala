@@ -31,14 +31,15 @@ class ControllerSupport (services: AppServices) extends InjectedController with 
     }
   }
 
-  def createResource[RESOURCE, CREATE](actor: ActorRef)(implicit req: Request[JsValue], writer: Writes[RESOURCE], reader: Reads[CREATE]): Future[Result] =
+  def createResource[RESOURCE, CREATE](actor: ActorRef)(implicit req: Request[JsValue], writer: Writes[RESOURCE], reader: Reads[CREATE]): Future[Result] = {
     req.body.validate[CREATE] match {
       case success: JsSuccess[CREATE] =>
         inquire(actor) { success.get } map handle[RESOURCE] recover {
           case NonFatal(e) => log.error("Error Creating Resource (recover)", e); InternalServerError
         }
-      case JsError(err)    => BadRequest(JsError.toJson(err)).successful()
+      case JsError(err)    => BadRequest("Error Creating Resource: " + JsError.toJson(err)).successful()
     }
+  }
 
   def createResourceDirectly[RESOURCE, REQUEST](collection: ObjectStore[RESOURCE, REQUEST])(implicit req: Request[JsValue], writer: Writes[RESOURCE], reader: Reads[REQUEST]): Future[Result] = {
     validateThen[REQUEST] { it =>
