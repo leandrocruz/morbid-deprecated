@@ -10,6 +10,7 @@ resolvers ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.apache.commons"   % "commons-text" % "1.6",
+  "org.slf4j"            % "slf4j-api"    % "1.7.26",
+  "org.apache.commons"   % "commons-text" % "1.6"   ,
   "com.squareup.okhttp3" % "okhttp"       % "4.0.0"
 )

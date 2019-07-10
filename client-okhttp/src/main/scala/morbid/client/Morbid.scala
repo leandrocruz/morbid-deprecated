@@ -9,6 +9,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 import org.apache.commons.text.StringEscapeUtils.escapeJson
 import okhttp3._
+import org.slf4j.LoggerFactory
 
 trait MorbidClient {
   def createAccount    (request: CreateAccountRequest) : Future[Either[Violation, Account]]
@@ -24,6 +25,8 @@ abstract class HttpMorbidClientSupport (
   val json = MediaType.get("application/json") //; charset=utf-8
 
   val client = new OkHttpClient()
+
+  val log = LoggerFactory.getLogger(getClass)
 
   val SeeServerLog = new Exception("See server log for details")
 
@@ -42,7 +45,9 @@ abstract class HttpMorbidClientSupport (
 
   def handleViolation[T](fn: String => Either[Violation, T])(request: Request) =
     Try(client.newCall(request).execute()) match {
-      case Failure(e) => Left(UnknownViolation(e))
+      case Failure(e) =>
+        log.error("Morbid Client Error", e)
+        Left(UnknownViolation(e))
       case Success(r) =>
         val body = r.body().string()
         r.code() match {
@@ -52,11 +57,16 @@ abstract class HttpMorbidClientSupport (
     }
 
   def handleError[T](fn: String => Try[T])(request: Request) =
-    Try(client.newCall(request).execute()) flatMap { r =>
-      if(r.isSuccessful)
-        fn(r.body().string())
-      else
-        Failure(new Exception(s"Not 200: ${r.code()}"))
+    Try(client.newCall(request).execute()) match {
+      case Failure(e) =>
+        log.error("Morbid Client Error", e)
+        Failure(e)
+      case Success(r) =>
+        if(r.isSuccessful)
+          fn(r.body().string())
+        else
+          log.error(s"Morbid Client Error 'Not 200: ${r.code()}'\n${r.body().string()}")
+          Failure(new Exception(s"Not 200: ${r.code()}"))
     }
 
   def getRequest(path: String) =
@@ -113,5 +123,5 @@ abstract class HttpMorbidClientSupport (
   def accountOrViolation (response: String) : Either[Violation, Account]
   def userOrViolation    (response: String) : Either[Violation, User]
   def toToken            (response: String) : Either[Violation, Token]
-  def toUser    (response: String) : Try[User]
+  def toUser             (response: String) : Try[User]
 }
