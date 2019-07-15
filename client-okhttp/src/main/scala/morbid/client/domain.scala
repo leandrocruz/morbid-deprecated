@@ -22,7 +22,7 @@ object domain {
 
   case class CreateAccountRequest(name: String, `type`: String)
 
-  case class CreateUserRequest(account: Long, name: String, email: String, `type`: String, password: Option[String])
+  case class CreateUserRequest(account: Long, name: String, email: String, `type`: String, password: Option[String] = None)
 
   case class AuthenticateRequest(email: String, password: String)
 

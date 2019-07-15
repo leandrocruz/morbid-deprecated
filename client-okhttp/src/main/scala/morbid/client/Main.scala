@@ -25,7 +25,7 @@ object Main extends App {
       override def toToken (response: String) = error(response)
     }
 
-    val result = Await.result(client.createUser(CreateUserRequest(4, "test", None, "email", "type")), 10 seconds)
+    val result = Await.result(client.createUser(CreateUserRequest(4, "John Smith", "john@email.com", "type")), 10 seconds)
     println(result)
   }
 }
