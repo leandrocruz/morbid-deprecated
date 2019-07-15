@@ -76,13 +76,13 @@ class UserSupervisorTest extends TestKit(ActorSystem("UserSupervisorTest", AkkaT
     val stores     = mock[Stores]
     val now        = Date.from(services.clock().instant())
     val user       = User(1, Some(account), now, None, active = true, "username", "email", "type", None, None)
-    val request    = CreateUserRequest(account.id, user.username, None, user.email, user.`type`)
+    val request    = CreateUserRequest(account.id, user.name, user.email, user.`type`)
     val password   = Password(1, 1, now, null, "sha256", "rnd16", "rnd32")
     val pwdRequest = CreatePasswordRequest(user.id, "sha256", "rnd16".sha256(), "rnd32")
 
     (stores.users     _)  .expects()                .returning(users)                 .once()
     (stores.passwords _)  .expects()                .returning(passwords)             .once()
-    (users.byUsername _)  .expects("username")  .returning(None.successful())     .once()
+    (users.byEmail    _)  .expects("email")     .returning(None.successful())     .once()
     (users.create     _)  .expects(request)         .returning(Right(user).successful())     .once()
     (passwords.create _)  .expects(pwdRequest)      .returning(Right(password).successful()) .once()
 
@@ -105,13 +105,13 @@ class UserSupervisorTest extends TestKit(ActorSystem("UserSupervisorTest", AkkaT
     val stores     = mock[Stores]
     val now        = Date.from(services.clock().instant())
     val user       = User(1, Some(account), now, None, active = true, "username", "email", "type", None, None)
-    val request    = CreateUserRequest(account.id, user.username, Some("strong"), user.email, user.`type`)
+    val request    = CreateUserRequest(account.id, user.name, user.email, user.`type`, Some("strong"))
     val password   = Password(1, 1, now, null, "sha256", "strong", "rnd32")
     val pwdRequest = CreatePasswordRequest(user.id, "sha256", "strong".sha256(), "rnd32")
 
     (stores.users     _)  .expects()                .returning(users)                 .once()
     (stores.passwords _)  .expects()                .returning(passwords)             .once()
-    (users.byUsername _)  .expects("username")  .returning(None.successful())     .once()
+    (users.byEmail    _)  .expects("email")     .returning(None.successful())     .once()
     (users.create     _)  .expects(request)         .returning(Right(user).successful())     .once()
     (passwords.create _)  .expects(pwdRequest)      .returning(Right(password).successful()) .once()
 
@@ -135,11 +135,11 @@ class UserSupervisorTest extends TestKit(ActorSystem("UserSupervisorTest", AkkaT
     val stores     = mock[Stores]
     val now        = Date.from(services.clock().instant())
     val user       = User(1, Some(account), now, None, active = true, "username", "email", "type", None, None)
-    val request    = CreateUserRequest(user.account.get.id, user.username, Some("weak"), user.email, user.`type`)
+    val request    = CreateUserRequest(user.account.get.id, user.name, user.email, user.`type`, Some("weak"))
 
     (stores.users     _)  .expects()                .returning(users)                 .once()
     (stores.passwords _)  .expects()                .returning(passwords)             .once()
-    (users.byUsername _)  .expects("username")  .returning(None.successful())     .once()
+    (users.byEmail    _)  .expects("email")     .returning(None.successful())     .once()
     (users.create     _)  .expects(*) .never()
     (passwords.create _)  .expects(*) .never()
 

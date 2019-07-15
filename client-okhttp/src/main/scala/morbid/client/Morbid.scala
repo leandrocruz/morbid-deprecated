@@ -87,7 +87,7 @@ abstract class HttpMorbidClientSupport (
     }
 
   override def authenticateUser(r: AuthenticateRequest) = {
-    val body = s"""{"username":"${escapeJson(r.username)}","password":"${escapeJson(r.password)}"}"""
+    val body = s"""{"email":"${escapeJson(r.email)}","password":"${escapeJson(r.password)}"}"""
     Future {
       handleViolation(toToken) {
         postRequest("/user/login", Some(body))
@@ -108,7 +108,7 @@ abstract class HttpMorbidClientSupport (
     val body =
       s"""{
          |"account"  : ${r.account},
-         |"username" :"${escapeJson(r.username)}",
+         |"name"     :"${escapeJson(r.name)}",
          |"email"    :"${escapeJson(r.email)}",
          |"type"     :"${escapeJson(r.`type`)}"
          |}""".stripMargin.replaceAll("\n", " ")

@@ -40,7 +40,7 @@ case class User(
   created     : Date,
   deleted     : Option[Date],
   active      : Boolean,
-  username    : String,
+  name        : String,
   email       : String,
   `type`      : String,
   password    : Option[Password],
@@ -67,12 +67,12 @@ class UserWithAccount(
 
 )
 
-case class AuthenticateRequest(username: String, password: String)
+case class AuthenticateRequest(email: String, password: String)
 case class CreateAccountRequest(name: String, `type`: String)
-case class CreateUserRequest(account: Long, username: String, password: Option[String], email: String, `type`: String)
+case class CreateUserRequest(account: Long, name: String, email: String, `type`: String, password: Option[String] = None)
 case class CreatePasswordRequest(user: Long, method: String, password: String, token: String, forceUpdate: Boolean = false)
-case class ResetPasswordRequest(username: Option[String], email: Option[String])
-case class ChangePasswordRequest(username: String, old: String, replacement: String)
+case class ResetPasswordRequest(email: String)
+case class ChangePasswordRequest(email: String, old: String, replacement: String)
 case class RefreshUserRequest(user: Long)
 case class AssignPermissionRequest(user: Long, permission: String)
 case class ServerTime(time: Date)
@@ -139,14 +139,14 @@ object tuples {
   }
 
   def toUser(tuple: UserTuple) = tuple match {
-    case (id, _ /* account id */, created, deleted, active, username, email, kind) =>
+    case (id, _ /* account id */, created, deleted, active, name, email, kind) =>
       User(
         id          = id,
         account     = None,
         created     = new Date(created.getTime),
         deleted     = deleted.map(it => new Date(it.getTime)),
         active      = active,
-        username    = username,
+        name        = name,
         email       = email,
         `type`      = kind,
         password    = None,
@@ -170,10 +170,10 @@ class UserTable(tag: Tag) extends Table[tuples.UserTuple](tag, "users") {
   def created  : Rep[Timestamp]         = column[Timestamp]         ("created")
   def deleted  : Rep[Option[Timestamp]] = column[Option[Timestamp]] ("deleted")
   def active   : Rep[Boolean]           = column[Boolean]           ("active")
-  def username : Rep[String]            = column[String]            ("username")
+  def name     : Rep[String]            = column[String]            ("name")
   def email    : Rep[String]            = column[String]            ("email")
   def `type`   : Rep[String]            = column[String]            ("type")
-  def * = (id, account, created, deleted, active, username, email, `type`)
+  def * = (id, account, created, deleted, active, name, email, `type`)
 }
 class SecretTable(tag: Tag) extends Table[tuples.SecretTuple](tag, "secrets") {
   def id       : Rep[Long]              = column[Long]              ("id", O.PrimaryKey, O.AutoInc)

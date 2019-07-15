@@ -25,8 +25,8 @@ import scala.util.control.NonFatal
 import scala.util.{Either, Failure}
 
 trait Users extends ObjectStore[User, CreateUserRequest] {
-  def byToken(it: String)          : Future[Option[User]]
-  def byUsername(username: String) : Future[Option[User]]
+  def byToken(it: String)    : Future[Option[User]]
+  def byEmail(email: String) : Future[Option[User]]
 }
 
 object Users {
@@ -77,9 +77,9 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
     }
   }
 
-  override def byId       (it: Long)   : Future[Option[User]] = selectOne { case (((user, _), _), _)   => user.id       === it }
-  override def byUsername (it: String) : Future[Option[User]] = selectOne { case (((user, _), _), _)   => user.username === it }
-  override def byToken    (it: String) : Future[Option[User]] = selectOne { case ((_, secret), _)      =>
+  override def byId    (it: Long)   : Future[Option[User]] = selectOne { case (((user, _), _), _)   => user.id    === it }
+  override def byEmail (it: String) : Future[Option[User]] = selectOne { case (((user, _), _), _)   => user.email === it }
+  override def byToken (it: String) : Future[Option[User]] = selectOne { case ((_, secret), _)      =>
     secret.map(value => value.token === it && value.deleted.isEmpty) getOrElse false
   }
 
@@ -94,7 +94,7 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
         created,
         null,
         true,
-        request.username,
+        request.name,
         request.email,
         request.`type`
       )
@@ -106,7 +106,7 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
           created     = Date.from(instant),
           deleted     = None,
           active      = true,
-          username    = request.username,
+          name        = request.name,
           email       = request.email,
           `type`      = request.`type`,
           password    = None,
@@ -138,21 +138,21 @@ class UsersSupervisor (
   val users     = stores.users()
   val passwords = stores.passwords()
 
-  val byUsername = mutable.Map[String, ActorRef]()
-  val byToken    = mutable.Map[String, ActorRef]()
-  val byId       = mutable.Map[Long  , ActorRef]()
+  val byEmail   = mutable.Map[String, ActorRef]()
+  val byToken   = mutable.Map[String, ActorRef]()
+  val byId      = mutable.Map[Long  , ActorRef]()
 
   val unknownUser = context.actorOf(Props(classOf[UnknownUserSupervisor]), "unknown-user")
 
   def addToCache(user: User, ref: ActorRef): ActorRef = {
-    byUsername += (user.username -> ref)
-    byId       += (user.id -> ref)
+    byEmail += (user.email -> ref)
+    byId    += (user.id    -> ref)
     user.password foreach { p => byToken += (p.token -> ref) }
     ref
   }
 
   def removeFromCache(user: User): Option[ActorRef] = {
-    val ref = byUsername remove user.username
+    val ref = byEmail remove user.email
     byId remove user.id
     user.password foreach { p => byToken remove p.token}
     ref
@@ -195,7 +195,7 @@ class UsersSupervisor (
 
   override def receive = {
     case DecommissionSupervisor(user, replyTo) =>
-      log.info(s"Decommissioning supervisor for '${user.username}'")
+      log.info(s"Decommissioning supervisor for '${user.email}'")
       removeFromCache(user) foreach { context stop }
       replyTo foreach { _ ! Done }
 
@@ -205,8 +205,8 @@ class UsersSupervisor (
     case it @ GetByToken(token) =>
       fw(it, byToken.get(token), users.byToken(token))
 
-    case it @ AuthenticateRequest(username, _) =>
-      fw(it, byUsername.get(username), users.byUsername(username))
+    case it @ AuthenticateRequest(email, _) =>
+      fw(it, byEmail.get(email), users.byEmail(email))
 
     case it @ AssignPermissionRequest(id, _) =>
       fw(it, byId.get(id), users.byId(id))
@@ -214,19 +214,19 @@ class UsersSupervisor (
     case it : CreateUserRequest =>
       to(sender()) {
         for {
-          same <- users.byUsername(it.username)
+          same <- users.byEmail(it.email)
           user <- create(it, same)
         } yield user
       }
 
-    case it @ ResetPasswordRequest(Some(username), _) =>
-      fw(it, byUsername.get(username), users.byUsername(username))
+    case it @ ResetPasswordRequest(email) =>
+      fw(it, byEmail.get(email), users.byEmail(email))
 
     case it @ RefreshUserRequest(id) =>
       fw(it, byId.get(id), users.byId(id))
 
-    case it @ ChangePasswordRequest(username, _, _) =>
-      fw(it, byUsername.get(username), users.byUsername(username))
+    case it @ ChangePasswordRequest(email, _, _) =>
+      fw(it, byEmail.get(email), users.byEmail(email))
 
     case any =>
       log.error(s"Can't handle $any")
@@ -308,7 +308,7 @@ class SingleUserSupervisor (
         }
       }
 
-  def resetPasswordFor(username: String): Future[Any] = {
+  def resetPasswordFor(email: String): Future[Any] = {
     Future.successful("ok")
   }
 
@@ -335,7 +335,7 @@ class SingleUserSupervisor (
     case AuthenticateRequest(_, password)           => sender ! authenticate(password)
     case GetByToken(_)                              => sender ! user
     case GetById(_)                                 => sender ! user
-    case ResetPasswordRequest(Some(username), _)    => to(sender) { resetPasswordFor(username)       }
+    case ResetPasswordRequest(email)                => to(sender) { resetPasswordFor(email)          }
     case AssignPermissionRequest(_, permission)     => to(sender) { assignPermission(permission)     }
     case ChangePasswordRequest(_, old, replacement) => to(sender) { changePassword(old, replacement) }
     case any                                        => log.error(s"Can't handle $any")

@@ -22,9 +22,9 @@ object domain {
 
   case class CreateAccountRequest(name: String, `type`: String)
 
-  case class CreateUserRequest(account: Long, username: String, password: Option[String], email: String, `type`: String)
+  case class CreateUserRequest(account: Long, name: String, email: String, `type`: String, password: Option[String])
 
-  case class AuthenticateRequest(username: String, password: String)
+  case class AuthenticateRequest(email: String, password: String)
 
   case class Account(
     id      : Long,
@@ -65,7 +65,7 @@ object domain {
     created     : Date,
     deleted     : Option[Date],
     active      : Boolean,
-    username    : String,
+    name        : String,
     email       : String,
     `type`      : String,
     password    : Option[Password],

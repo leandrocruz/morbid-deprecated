@@ -68,13 +68,10 @@ class UserController @Inject()(
   }
 
   def resetPassword() = Action.async(parse.json) { implicit r =>
-    validateThen[ResetPasswordRequest] {
-      case ResetPasswordRequest(None, None) =>
-        Future.successful(BadRequest)
-      case req =>
-        toResult {
-          inquire(actors.users()) { req }
-        }
+    validateThen[ResetPasswordRequest] { req =>
+      toResult {
+        inquire(actors.users()) { req }
+      }
     }
   }
 
