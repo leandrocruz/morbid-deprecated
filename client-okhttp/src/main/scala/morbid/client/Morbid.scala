@@ -56,17 +56,18 @@ abstract class HttpMorbidClientSupport (
       }
     }
 
-  def handleError[T](fn: String => Try[T])(request: Request) =
+  def handleError[T](fn: String => Try[T])(request: Request): Try[T] =
     Try(client.newCall(request).execute()) match {
       case Failure(e) =>
         log.error("Morbid Client Error", e)
         Failure(e)
       case Success(r) =>
-        if(r.isSuccessful)
+        if(r.isSuccessful) {
           fn(r.body().string())
-        else
+        } else {
           log.error(s"Morbid Client Error 'Not 200: ${r.code()}'\n${r.body().string()}")
           Failure(new Exception(s"Not 200: ${r.code()}"))
+        }
     }
 
   def getRequest(path: String) =
