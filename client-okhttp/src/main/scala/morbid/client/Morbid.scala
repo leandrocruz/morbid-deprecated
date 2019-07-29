@@ -15,6 +15,7 @@ trait MorbidClient {
   def createAccount    (request: CreateAccountRequest) : Future[Either[Violation, Account]]
   def createUser       (request: CreateUserRequest)    : Future[Either[Violation, User]]
   def authenticateUser (request: AuthenticateRequest)  : Future[Either[Violation, Token]]
+  def changePassword   (request: ChangePasswordRequest): Future[Either[Violation, Token]]
   def byToken          (token: String)                 : Future[Try[User]]
 }
 
@@ -117,6 +118,21 @@ abstract class HttpMorbidClientSupport (
     Future {
       handleViolation(userOrViolation) {
         postRequest("/user", Some(body))
+      }
+    }
+  }
+
+  override def changePassword(request: ChangePasswordRequest) = {
+    val body =
+      s"""{
+         |"email"       : "${escapeJson(request.email)}",
+         |"old"         : "${escapeJson(request.old)}",
+         |"replacement" : "${escapeJson(request.replacement)}"
+         |}""".stripMargin.replaceAll("\n", " ")
+
+    Future {
+      handleViolation(toToken) {
+        postRequest("/user/password/change", Some(body))
       }
     }
   }
