@@ -15,7 +15,7 @@ trait MorbidClient {
   def createAccount    (request: CreateAccountRequest) : Future[Either[Violation, Account]]
   def createUser       (request: CreateUserRequest)    : Future[Either[Violation, User]]
   def authenticateUser (request: AuthenticateRequest)  : Future[Either[Violation, Token]]
-  def changePassword   (request: ChangePasswordRequest): Future[Either[Violation, Token]]
+  def changePassword   (request: ChangePasswordRequest): Future[Either[Violation, Unit]]
   def byToken          (token: String)                 : Future[Try[User]]
 }
 
@@ -131,11 +131,14 @@ abstract class HttpMorbidClientSupport (
          |}""".stripMargin.replaceAll("\n", " ")
 
     Future {
-      handleViolation(toToken) {
+      handleViolation(discard) {
         postRequest("/user/password/change", Some(body))
       }
     }
   }
+
+  def discard  (response: String): Either[Violation, Unit]   = Right()
+  def toString (response: String): Either[Violation, String] = Right(response)
 
   def accountOrViolation (response: String) : Either[Violation, Account]
   def userOrViolation    (response: String) : Either[Violation, User]
