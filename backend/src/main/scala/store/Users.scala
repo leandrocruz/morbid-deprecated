@@ -161,7 +161,7 @@ class UsersSupervisor (
   def registerSupervisor(op: Option[User]): ActorRef =
     op match {
       case Some(user) if !byId.contains(user.id) =>
-        log.info(s"Creating Supervisor for ${user.id}/${user.password.map(_.token)}")
+        log.info(s"Creating Supervisor for ${user.email} (token: ${user.password.map(_.token).get})")
         val ref = context.actorOf(Props(classOf[SingleUserSupervisor], user, services, tokens, stores), s"user-${user.id}")
         addToCache(user, ref)
       case _ => unknownUser
@@ -279,6 +279,7 @@ class SingleUserSupervisor (
   }
 
   def changePassword(old: String, replacement: String): Future[Either[Violation, Done.type]] = {
+    log.info(s"Changing password for ${user.email}")
     val pwd = user.password.get
     checkPassword(old)(pwd) match {
       case Left(PasswordMismatch) => Left(PasswordMismatch).successful()
@@ -292,6 +293,7 @@ class SingleUserSupervisor (
         else              EitherT(createNewPassword(replacement)) map {
           pwd =>
             /* Ouch! This is ugly */ user = user.copy(password = Some(pwd))
+            decommission(None)
             Done
         } value
     }
