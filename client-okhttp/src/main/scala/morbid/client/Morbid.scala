@@ -142,7 +142,7 @@ abstract class HttpMorbidClientSupport (
     val body =
       s"""{
          |"user"      : ${request.user},
-         |"permission": "${escapeJson(request.permission)}",
+         |"permission": "${escapeJson(request.permission)}"
          |}""".stripMargin.replaceAll("\n", " ")
 
     Future {
@@ -151,7 +151,7 @@ abstract class HttpMorbidClientSupport (
       }
     }
   }
-  
+
   def discard  (response: String): Either[Violation, Unit]   = Right()
   def toString (response: String): Either[Violation, String] = Right(response)
 
