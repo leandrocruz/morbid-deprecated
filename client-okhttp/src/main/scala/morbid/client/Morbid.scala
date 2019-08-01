@@ -12,11 +12,12 @@ import okhttp3._
 import org.slf4j.LoggerFactory
 
 trait MorbidClient {
-  def createAccount    (request: CreateAccountRequest) : Future[Either[Violation, Account]]
-  def createUser       (request: CreateUserRequest)    : Future[Either[Violation, User]]
-  def authenticateUser (request: AuthenticateRequest)  : Future[Either[Violation, Token]]
-  def changePassword   (request: ChangePasswordRequest): Future[Either[Violation, Unit]]
-  def byToken          (token: String)                 : Future[Try[User]]
+  def createAccount    (request: CreateAccountRequest)    : Future[Either[Violation, Account]]
+  def createUser       (request: CreateUserRequest)       : Future[Either[Violation, User]]
+  def authenticateUser (request: AuthenticateRequest)     : Future[Either[Violation, Token]]
+  def changePassword   (request: ChangePasswordRequest)   : Future[Either[Violation, Unit]]
+  def assignPermission (request: AssignPermissionRequest) : Future[Either[Violation, Unit]]
+  def byToken          (token: String)                    : Future[Try[User]]
 }
 
 abstract class HttpMorbidClientSupport (
@@ -137,6 +138,20 @@ abstract class HttpMorbidClientSupport (
     }
   }
 
+  override def assignPermission(request: AssignPermissionRequest) = {
+    val body =
+      s"""{
+         |"user"      : ${request.user},
+         |"permission": "${escapeJson(request.permission)}",
+         |}""".stripMargin.replaceAll("\n", " ")
+
+    Future {
+      handleViolation(discard) {
+        postRequest("/user/permission/assign", Some(body))
+      }
+    }
+  }
+  
   def discard  (response: String): Either[Violation, Unit]   = Right()
   def toString (response: String): Either[Violation, String] = Right(response)
 

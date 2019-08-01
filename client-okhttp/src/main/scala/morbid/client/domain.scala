@@ -2,8 +2,6 @@ package morbid.client
 
 import java.util.Date
 
-import domain.ChangePasswordRequest
-
 trait Violation
 
 object violations {
@@ -29,6 +27,8 @@ object domain {
   case class AuthenticateRequest(email: String, password: String)
 
   case class ChangePasswordRequest(email: String, old: String, replacement: String)
+
+  case class AssignPermissionRequest(user: Long, permission: String)
 
   case class Account(
     id      : Long,
