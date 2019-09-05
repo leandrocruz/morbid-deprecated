@@ -5,7 +5,8 @@ if [ -d "tmp" ]; then
 fi
 
 name=morbid-backend
-echo "Building '$name'"
+version=$1
+echo "Building '$name:$version'"
 
 mkdir tmp
 unzip -q ../target/universal/package.zip -d tmp
@@ -18,4 +19,4 @@ EOF
 chmod +x tmp/run
 
 cd tmp
-docker build -t $name:v1.0 .
+docker build -t $name:$version .
