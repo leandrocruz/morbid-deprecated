@@ -39,10 +39,12 @@ object Users {
     }
 
   private def perms(items: Seq[(User, Account, Option[Password], Option[Permission])]): Option[Seq[Permission]] = {
+    //items.foreach(i => println(s"${i._1.email}, ${i._2.name}, ${i._3.map(_.token)}, ${i._4.map(_.name)}"))
     val perms = items
       .map({ case (_, _, _, p) => p })
       .filter(_.isDefined)
       .map(_.get)
+      .distinct
 
     if(perms.isEmpty) None else Some(perms)
   }
@@ -205,6 +207,9 @@ class UsersSupervisor (
     case it @ GetByToken(token) =>
       fw(it, byToken.get(token), users.byToken(token))
 
+    case it @ GetByEmail(email) =>
+      fw(it, byEmail.get(email), users.byEmail(email))
+
     case it @ AuthenticateRequest(email, _) =>
       fw(it, byEmail.get(email), users.byEmail(email))
 
@@ -311,11 +316,24 @@ class SingleUserSupervisor (
       }
 
   def resetPasswordFor(email: String): Future[Any] = {
-    Future.successful("ok")
+    val password = services.secrets().generate(16)
+
+    createNewPassword(password) map {
+      case Right(pwd) =>
+        update(pwd)
+        Right(user.copy(password = Some(pwd.copy(password = password, method = "plain"))))
+
+      case _ => identity()
+    }
   }
 
   def decommission(replyTo: Option[ActorRef]) = {
     context.parent ! DecommissionSupervisor(user, replyTo)
+  }
+
+  def update(password: Password) = {
+    user = user.copy(password = Some(password))
+    decommission(None)
   }
 
   def update(perm: Permission) = {
@@ -332,11 +350,12 @@ class SingleUserSupervisor (
 
 
   override def receive = {
+    case GetById(_)                                 => sender ! user
+    case GetByToken(_)                              => sender ! user
+    case GetByEmail(_)                              => sender ! user
     case ReceiveTimeout                             => decommission(None)
     case RefreshUserRequest(_)                      => decommission(Some(sender))
     case AuthenticateRequest(_, password)           => sender ! authenticate(password)
-    case GetByToken(_)                              => sender ! user
-    case GetById(_)                                 => sender ! user
     case ResetPasswordRequest(email)                => to(sender) { resetPasswordFor(email)          }
     case AssignPermissionRequest(_, permission)     => to(sender) { assignPermission(permission)     }
     case ChangePasswordRequest(_, old, replacement) => to(sender) { changePassword(old, replacement) }
