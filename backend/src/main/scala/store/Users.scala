@@ -277,10 +277,10 @@ class SingleUserSupervisor (
     }
   }
 
-  def createNewPassword(replacement: String) = {
+  def createNewPassword(replacement: String, forceUpdate: Boolean = false) = {
     val passwords = stores.passwords()
     val token     = services.rnd().generate(32)
-    passwords create CreatePasswordRequest(user.id, "sha256", replacement.sha256(), token)
+    passwords create CreatePasswordRequest(user.id, "sha256", replacement.sha256(), token, forceUpdate)
   }
 
   def changePassword(old: String, replacement: String): Future[Either[Violation, Done.type]] = {
@@ -318,7 +318,7 @@ class SingleUserSupervisor (
   def resetPasswordFor(email: String): Future[Any] = {
     val password = services.secrets().generate(16)
 
-    createNewPassword(password) map {
+    createNewPassword(password, forceUpdate = true) map {
       case Right(pwd) =>
         update(pwd)
         Right(user.copy(password = Some(pwd.copy(password = password, method = "plain"))))

@@ -28,6 +28,8 @@ object domain {
 
   case class ChangePasswordRequest(email: String, old: String, replacement: String)
 
+  case class ResetPasswordRequest(email: String)
+
   case class AssignPermissionRequest(user: Long, permission: String)
 
   case class Account(
