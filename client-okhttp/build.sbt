@@ -3,7 +3,7 @@ import sbt.Keys._
 scalaVersion := "2.12.4"
 organization := "morbid"
 name         := "morbid-client-okhttp"
-version      := "v1.1"
+version      := "v1.2-SNAPSHOT"
 
 resolvers ++= Seq(
   Resolver.sonatypeRepo("releases")
