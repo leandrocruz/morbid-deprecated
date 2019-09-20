@@ -18,6 +18,7 @@ trait MorbidClient {
   def changePassword   (request: ChangePasswordRequest)   : Future[Either[Violation, Unit]]
   def assignPermission (request: AssignPermissionRequest) : Future[Either[Violation, Unit]]
   def byToken          (token: String)                    : Future[Try[User]]
+  def byEmail          (email: String)                    : Future[Try[User]]
 }
 
 abstract class HttpMorbidClientSupport (
@@ -80,6 +81,13 @@ abstract class HttpMorbidClientSupport (
       new Request.Builder().url(s"$location$path").post(RequestBody.create(it, json)).build
     } getOrElse {
       new Request.Builder().url(s"$location$path").build
+    }
+
+  override def byEmail(email: String) =
+    Future {
+      handleError(toUser) {
+        getRequest(s"/user/email/${URLEncoder.encode(email, "utf8")}")
+      }
     }
 
   override def byToken(token: String) =

@@ -11,6 +11,7 @@ case object Done
 case object UnknownUser
 case object ResourceAlreadyExists
 
+case class  GetByEmail(email: String)
 case class  GetByToken(token: String)
 case class  GetById(id: Long)
 case class  CreateResource[T](request: T)

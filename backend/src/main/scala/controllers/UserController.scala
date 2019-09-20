@@ -49,6 +49,12 @@ class UserController @Inject()(
     }
   }
 
+  def byEmail(it: String)= Action.async {
+    toJson[User](serialize) {
+      inquire(actors.users()) { GetByEmail(it) }
+    }
+  }
+
   def byToken(it: String) = Action.async {
     tokens.verify(it) match {
       case Failure(e)   => Forbidden("Invalid Signature").successful()
@@ -69,7 +75,7 @@ class UserController @Inject()(
 
   def resetPassword() = Action.async(parse.json) { implicit r =>
     validateThen[ResetPasswordRequest] { req =>
-      toResult {
+      toJson[User](serialize) {
         inquire(actors.users()) { req }
       }
     }
