@@ -61,13 +61,14 @@ object Users {
 
 class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator) extends Users {
 
-  type RowFilterParams = (((UserTable, AccountTable), Rep[Option[SecretTable]]), Rep[Option[PermissionTable]]) // remove warning from intellij
-
+  type TheRow = (((UserTable, AccountTable), Rep[Option[SecretTable]]), Rep[Option[PermissionTable]]) // remove warning from intellij
   implicit val ec = services.ec()
 
-  def selectOne(rowFilter: RowFilterParams => Rep[Boolean]): Future[Option[User]] = {
+  def latestPassword(row: TheRow) = row._1._2.map(_.id).desc
+
+  def selectOne(filter: TheRow => Rep[Boolean]): Future[Option[User]] = {
     val query = for {
-      (((user, account), secret), perm) <- users join accounts on { _.account === _.id } joinLeft secrets on { _._1.id === _.user } joinLeft permissions on { _._1._1.id === _.user } filter { rowFilter }
+      (((user, account), secret), perm) <- users join accounts on { _.account === _.id } joinLeft secrets on { _._1.id === _.user } joinLeft permissions on { _._1._1.id === _.user } filter { filter } sortBy { latestPassword }
     } yield (user, account, secret, perm)
 
     //println(query.result.statements)
