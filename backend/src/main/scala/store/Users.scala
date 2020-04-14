@@ -255,6 +255,7 @@ class SingleUserSupervisor (
 
   implicit val ec  = services.ec()
   val conf         = services.conf().get[Configuration] ("passwords")
+  val pwdExp       = conf.getOptional[Boolean]          ("expire").getOrElse(false)
   val expiresIn    = Some(conf.get[Duration]            ("tokens.expiresIn"))
   val issuer       = conf.get[String]                   ("tokens.issuer")
   val notOlderThan = conf.get[Int]                      ("mustBe.notOlderThan")
@@ -268,7 +269,7 @@ class SingleUserSupervisor (
   }
 
   def checkPassword(provided: String)(password: Password): Either[Violation, Token] = {
-    val old  = password.created.before(passwordLifetimeLimit())
+    val old  = pwdExp && password.created.before(passwordLifetimeLimit())
     val same = provided.sha256 == password.password
 
     (old, same) match {

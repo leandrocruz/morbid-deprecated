@@ -1,9 +1,9 @@
 import sbt.Keys._
 
-scalaVersion := "2.12.4"
+scalaVersion := "2.12.11"
 organization := "morbid"
 name         := "morbid-client-okhttp"
-version      := "v1.1.3"
+version      := "v2.0"
 
 
 resolvers ++= Seq(

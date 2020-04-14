@@ -1,8 +1,8 @@
 import sbt.Keys._
 
-scalaVersion := "2.12.4"
+scalaVersion := "2.12.11"
 name         := "morbid-backend"
-version      := "v1.1.4"
+version      := "v2.0"
 
 PlayKeys.devSettings := Seq(
   "app.env"     -> "test",
@@ -19,14 +19,14 @@ libraryDependencies ++= Seq(
   guice,
   ws,
   filters,
-  "org.typelevel"      %% "cats-core"      % "1.6.0",
-  "org.passay"         %  "passay"         % "1.4.0",
-  "org.apache.commons" %  "commons-text"   % "1.6",
-  "com.chuusai"        %% "shapeless"      % "2.3.3",
-  "com.typesafe.slick" %% "slick"          % "3.2.1",
-  "com.typesafe.slick" %% "slick-hikaricp" % "3.2.1",
-  "org.postgresql"     %  "postgresql"     % "42.1.4",
-  "xingu" %% "xingu-scala-play" % "v1.0.1",
+  "org.typelevel"          %% "cats-core"                   % "1.6.0",
+  "org.passay"             %  "passay"                      % "1.4.0",
+  "org.apache.commons"     %  "commons-text"                % "1.6",
+  "com.chuusai"            %% "shapeless"                   % "2.3.3",
+  "com.typesafe.slick"     %% "slick"                       % "3.3.2",
+  "com.typesafe.slick"     %% "slick-hikaricp"              % "3.3.2",
+  "org.postgresql"         %  "postgresql"                  % "42.1.4",
+  "xingu"                  %% "xingu-scala-play"            % "v1.1.2",
   "com.typesafe.akka"      %% "akka-testkit"                % "2.5.21" % Test,
   "org.scalatestplus.play" %% "scalatestplus-play"          % "3.1.0"  % Test,
   "org.scalamock"          %% "scalamock-scalatest-support" % "3.5.0"  % Test
