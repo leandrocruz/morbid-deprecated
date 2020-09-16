@@ -1,7 +1,6 @@
 package morbid.client
 
-import morbid.client.domain.CreateUserRequest
-import morbid.client.violations.UnknownViolation
+import morbid.client.domain.{CreateUserRequest, Violation}
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext}
@@ -12,7 +11,7 @@ object Main extends App {
     val client = new HttpMorbidClientSupport("http://localhost:9004", ExecutionContext.global) {
       def violation[T](response: String): Either[Violation, T] = {
         println(response)
-        Left(UnknownViolation(new Exception("TODO")))
+        Left(Violation("UnknownViolation", Some(new Exception("TODO"))))
       }
       def error[T](response: String): Try[T] = {
         println(response)

@@ -3,7 +3,6 @@ package morbid.client
 import java.net.URLEncoder
 
 import morbid.client.domain._
-import morbid.client.violations._
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
@@ -35,23 +34,23 @@ abstract class HttpMorbidClientSupport (
   val SeeServerLog = new Exception("See server log for details")
 
   def error(body: String) = body match {
-    case "UnknownUser"                  => Left(UnknownUser)
-    case "PasswordTooOld"               => Left(PasswordTooOld)
-    case "PasswordMismatch"             => Left(PasswordMismatch)
-    case "NoPasswordAvailable"          => Left(NoPasswordAvailable)
-    case "PasswordAlreadyUsed"          => Left(PasswordAlreadyUsed)
-    case "PasswordTooWeak"              => Left(PasswordTooWeak)
-    case "UniqueViolation"              => Left(UniqueViolation              (SeeServerLog))
-    case "ForeignKeyViolation"          => Left(ForeignKeyViolation          (SeeServerLog))
-    case "IntegrityConstraintViolation" => Left(IntegrityConstraintViolation (SeeServerLog))
-    case _ => Left(UnknownViolation(new Exception(body)))
+    case "UnknownUser"                  => Left(Violation(body))
+    case "PasswordTooOld"               => Left(Violation(body))
+    case "PasswordMismatch"             => Left(Violation(body))
+    case "NoPasswordAvailable"          => Left(Violation(body))
+    case "PasswordAlreadyUsed"          => Left(Violation(body))
+    case "PasswordTooWeak"              => Left(Violation(body))
+    case "UniqueViolation"              => Left(Violation(body              , Some(SeeServerLog)))
+    case "ForeignKeyViolation"          => Left(Violation(body              , Some(SeeServerLog)))
+    case "IntegrityConstraintViolation" => Left(Violation(body              , Some(SeeServerLog)))
+    case _                              => Left(Violation("UnknownViolation", Some(new Exception(body))))
   }
 
   def handleViolation[T](fn: String => Either[Violation, T])(request: Request) =
     Try(client.newCall(request).execute()) match {
       case Failure(e) =>
         log.error("Morbid Client Error", e)
-        Left(UnknownViolation(e))
+        Left(Violation("UnknownViolation", Some(e)))
       case Success(r) =>
         val body = r.body().string()
         r.code() match {
