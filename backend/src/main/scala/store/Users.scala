@@ -10,6 +10,7 @@ import cats.implicits._
 import domain._
 import domain.collections._
 import domain.tuples._
+import org.slf4j.LoggerFactory
 import play.api.Configuration
 import services.{AppServices, TokenGenerator}
 import slick.jdbc.PostgresProfile.api._
@@ -240,8 +241,12 @@ class UsersSupervisor (
 }
 
 class UnknownUserSupervisor extends Actor {
+  val logger = LoggerFactory.getLogger(getClass)
+
   override def receive = {
-    case _ => sender ! UnknownUser
+    case any =>
+      logger.warn(s"Can't handle '$any' for unknown users")
+      sender ! UnknownUser
   }
 }
 
