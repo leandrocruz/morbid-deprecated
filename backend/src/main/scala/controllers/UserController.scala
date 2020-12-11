@@ -104,4 +104,13 @@ class UserController @Inject()(
       }
     }
   }
+
+  def impersonate() = Action.async(parse.json) { implicit r =>
+    validateThen[ImpersonateRequest] { req =>
+      inquire(actors.users()) { req } map {
+        case Some(token: Token) => Ok(Json.toJson(token))
+        case None => NotImplemented
+      }
+    }
+  }
 }
