@@ -17,8 +17,9 @@ trait MorbidClient {
   def resetPassword    (request: ResetPasswordRequest)    : Future[Either[Violation, User]]
   def changePassword   (request: ChangePasswordRequest)   : Future[Either[Violation, Unit]]
   def assignPermission (request: AssignPermissionRequest) : Future[Either[Violation, Unit]]
-  def byToken          (token: String)                    : Future[Try[User]]
-  def byEmail          (email: String)                    : Future[Try[User]]
+  def byToken          (token: String)                    : Future[Either[Throwable,User]]
+  def byEmail          (email: String)                    : Future[Either[Throwable,User]]
+  def usersBy          (account: Long)                    : Future[Either[Throwable, Seq[User]]]
 }
 
 abstract class HttpMorbidClientSupport (
@@ -33,20 +34,22 @@ abstract class HttpMorbidClientSupport (
 
   val SeeServerLog = new Exception("See server log for details")
 
-  def error(body: String) = body match {
-    case "UnknownUser"                  => Left(Violation(body))
-    case "PasswordTooOld"               => Left(Violation(body))
-    case "PasswordMismatch"             => Left(Violation(body))
-    case "NoPasswordAvailable"          => Left(Violation(body))
-    case "PasswordAlreadyUsed"          => Left(Violation(body))
-    case "PasswordTooWeak"              => Left(Violation(body))
-    case "UniqueViolation"              => Left(Violation(body              , Some(SeeServerLog)))
-    case "ForeignKeyViolation"          => Left(Violation(body              , Some(SeeServerLog)))
-    case "IntegrityConstraintViolation" => Left(Violation(body              , Some(SeeServerLog)))
-    case _                              => Left(Violation("UnknownViolation", Some(new Exception(body))))
+  def error(body: String) = {
+    body match {
+      case "UnknownUser"                  => Left(Violation(body))
+      case "PasswordTooOld"               => Left(Violation(body))
+      case "PasswordMismatch"             => Left(Violation(body))
+      case "NoPasswordAvailable"          => Left(Violation(body))
+      case "PasswordAlreadyUsed"          => Left(Violation(body))
+      case "PasswordTooWeak"              => Left(Violation(body))
+      case "UniqueViolation"              => Left(Violation(body              , Some(SeeServerLog)))
+      case "ForeignKeyViolation"          => Left(Violation(body              , Some(SeeServerLog)))
+      case "IntegrityConstraintViolation" => Left(Violation(body              , Some(SeeServerLog)))
+      case _                              => Left(Violation("UnknownViolation", Some(new Exception(body))))
+    }
   }
 
-  def handleViolation[T](fn: String => Either[Violation, T])(request: Request) =
+  def handleViolation[T](fn: String => Either[Violation, T])(request: Request) = {
     Try(client.newCall(request).execute()) match {
       case Failure(e) =>
         log.error("Morbid Client Error", e)
@@ -58,44 +61,50 @@ abstract class HttpMorbidClientSupport (
         case _   => error (body)
       }
     }
+  }
 
-  def handleError[T](fn: String => Try[T])(request: Request): Try[T] =
+  def handleError[T](fn: String => Either[Throwable, T])(request: Request): Either[Throwable, T] = {
     Try(client.newCall(request).execute()) match {
       case Failure(e) =>
         log.error("Morbid Client Error", e)
-        Failure(e)
+        Left(e)
       case Success(r) =>
         if(r.isSuccessful) {
           fn(r.body().string())
         } else {
           log.error(s"Morbid Client Error 'Not 200: ${r.code()}'\n${r.body().string()}")
-          Failure(new Exception(s"Not 200: ${r.code()}"))
+          Left(new Exception(s"Not 200: ${r.code()}"))
         }
     }
+  }
 
-  def getRequest(path: String) =
+  def getRequest(path: String) = {
     new Request.Builder().url(s"$location$path").build
+  }
 
-  def postRequest(path: String, body: Option[String]) =
+  def postRequest(path: String, body: Option[String]) = {
     body map { it =>
       new Request.Builder().url(s"$location$path").post(RequestBody.create(it, json)).build
     } getOrElse {
       new Request.Builder().url(s"$location$path").build
     }
+  }
 
-  override def byEmail(email: String) =
+  override def byEmail(email: String) = {
     Future {
       handleError(toUser) {
         getRequest(s"/user/email/${URLEncoder.encode(email, "utf8")}")
       }
     }
+  }
 
-  override def byToken(token: String) =
+  override def byToken(token: String) = {
     Future {
       handleError(toUser) {
         getRequest(s"/user/token/${URLEncoder.encode(token, "utf8")}")
       }
     }
+  }
 
   override def authenticateUser(r: AuthenticateRequest) = {
     val body = s"""{"email":"${escapeJson(r.email)}","password":"${escapeJson(r.password)}"}"""
@@ -169,11 +178,20 @@ abstract class HttpMorbidClientSupport (
     }
   }
 
+  override def usersBy(account: Long) = {
+    Future {
+      handleError(toUsers) {
+        getRequest(s"/account/${account}/users")
+      }
+    }
+  }
+
   def discard  (response: String): Either[Violation, Unit]   = Right()
   def toString (response: String): Either[Violation, String] = Right(response)
 
   def accountOrViolation (response: String) : Either[Violation, Account]
   def userOrViolation    (response: String) : Either[Violation, User]
   def toToken            (response: String) : Either[Violation, Token]
-  def toUser             (response: String) : Try[User]
+  def toUser             (response: String) : Either[Throwable, User]
+  def toUsers            (response: String) : Either[Throwable, Seq[User]]
 }

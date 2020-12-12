@@ -113,4 +113,11 @@ class UserController @Inject()(
       }
     }
   }
+
+  def byAccount(account: Long) = Action.async {
+    inquire(actors.users()) { ByAccount(account) } map {
+      case Left(e: Throwable)      => log.error("Error", e); InternalServerError(e.getMessage)
+      case Right(users: Seq[User]) => Ok(Json.toJson(users))
+    }
+  }
 }

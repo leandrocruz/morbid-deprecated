@@ -78,6 +78,7 @@ case class ResetPasswordRequest(email: String)
 case class ChangePasswordRequest(email: String, old: String, replacement: String)
 case class RefreshUserRequest(user: Long)
 case class AssignPermissionRequest(user: Long, permission: String)
+case class ByAccount(id: Long)
 
 object json {
   val format = "yyyyMMdd'T'HHmmss"
