@@ -5,6 +5,7 @@ import java.time.temporal.ChronoUnit
 import java.util.Date
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, ReceiveTimeout, Timers}
+import akka.pattern.pipe
 import cats.data.EitherT
 import cats.implicits._
 import domain._
@@ -26,8 +27,9 @@ import scala.util.control.NonFatal
 import scala.util.{Either, Failure}
 
 trait Users extends ObjectStore[User, CreateUserRequest] {
-  def byToken(it: String)    : Future[Option[User]]
-  def byEmail(email: String) : Future[Option[User]]
+  def byToken(it: String)      : Future[Option[User]]
+  def byEmail(email: String)   : Future[Option[User]]
+  def byAccount(account: Long) : Future[Either[Throwable, Seq[User]]]
 }
 
 object Users {
@@ -118,6 +120,17 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
       ))
     } recover {
       case NonFatal(e) => Left(Violations.of(e))
+    }
+  }
+
+  override def byAccount(account: Long): Future[Either[Throwable, Seq[User]]] = {
+    val query = users.filter(_.account === account)
+    db.run {
+      query.result
+    } map {
+      _.map(toUser)
+    } map {
+      Right(_)
     }
   }
 }
@@ -235,6 +248,12 @@ class UsersSupervisor (
     case it @ ChangePasswordRequest(email, _, _) =>
       fw(it, byEmail.get(email), users.byEmail(email))
 
+    case it @ ImpersonateRequest(email, _) =>
+      fw(it, byEmail.get(email), users.byEmail(email))
+
+    case ByAccount(account) =>
+      users.byAccount(account) pipeTo sender
+
     case any =>
       log.error(s"Can't handle $any")
   }
@@ -265,6 +284,7 @@ class SingleUserSupervisor (
   val issuer       = conf.get[String]                   ("tokens.issuer")
   val notOlderThan = conf.get[Int]                      ("mustBe.notOlderThan")
   val daysAgo      = java.time.Duration.of(notOlderThan, ChronoUnit.DAYS)
+  val master       = conf.getOptional[String]("master")
 
   context.setReceiveTimeout(5 minutes)
   //  timers.startPeriodicTimer("refresh", Refresh, 1 seconds)
@@ -311,16 +331,24 @@ class SingleUserSupervisor (
     }
   }
 
-    def authenticate(password: String) =
-      if("crash" == password) {
-        throw new Exception("crash")
-      } else {
-        user.password map {
-          checkPassword(password)
-        } getOrElse {
-          Left(NoPasswordAvailable)
-        }
+  def authenticate(password: String) = {
+    if("crash" == password) {
+      throw new Exception("crash")
+    } else {
+      user.password map {
+        checkPassword(password)
+      } getOrElse {
+        Left(NoPasswordAvailable)
       }
+    }
+  }
+
+  def impersonate(provided: String): Option[Token] = {
+    master flatMap {
+      case `provided` /* stable identifier */ => user.password map { pwd => tokens.createToken(issuer, pwd.token, expiresIn) }
+      case _ => None
+    }
+  }
 
   def resetPasswordFor(email: String): Future[Any] = {
     val password = services.secrets().generate(16)
@@ -363,6 +391,7 @@ class SingleUserSupervisor (
     case ReceiveTimeout                             => decommission(None)
     case RefreshUserRequest(_)                      => decommission(Some(sender))
     case AuthenticateRequest(_, password)           => sender ! authenticate(password)
+    case ImpersonateRequest(_, master)              => sender ! impersonate(master)
     case ResetPasswordRequest(email)                => to(sender) { resetPasswordFor(email)          }
     case AssignPermissionRequest(_, permission)     => to(sender) { assignPermission(permission)     }
     case ChangePasswordRequest(_, old, replacement) => to(sender) { changePassword(old, replacement) }

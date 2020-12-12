@@ -68,7 +68,9 @@ class UserWithAccount(
 
 )
 
+case class ServerTime(time: Date)
 case class AuthenticateRequest(email: String, password: String)
+case class ImpersonateRequest(email: String, master: String)
 case class CreateAccountRequest(name: String, `type`: String)
 case class CreateUserRequest(account: Long, name: String, email: String, `type`: String, password: Option[String] = None)
 case class CreatePasswordRequest(user: Long, method: String, password: String, token: String, forceUpdate: Boolean = false)
@@ -76,7 +78,7 @@ case class ResetPasswordRequest(email: String)
 case class ChangePasswordRequest(email: String, old: String, replacement: String)
 case class RefreshUserRequest(user: Long)
 case class AssignPermissionRequest(user: Long, permission: String)
-case class ServerTime(time: Date)
+case class ByAccount(id: Long)
 
 object json {
   val format = "yyyyMMdd'T'HHmmss"
@@ -95,6 +97,7 @@ object json {
   implicit val RefreshUserRequestReader     = Json.reads[RefreshUserRequest]
   implicit val AddPermissionRequestReader   = Json.reads[AssignPermissionRequest]
   implicit val ChangePasswordRequestReader  = Json.reads[ChangePasswordRequest]
+  implicit val ImpersonateRequestReader     = Json.reads[ImpersonateRequest]
 }
 
 import slick.jdbc.PostgresProfile.api._
