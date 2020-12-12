@@ -104,4 +104,20 @@ class UserController @Inject()(
       }
     }
   }
+
+  def impersonate() = Action.async(parse.json) { implicit r =>
+    validateThen[ImpersonateRequest] { req =>
+      inquire(actors.users()) { req } map {
+        case Some(token: Token) => Ok(Json.toJson(token))
+        case None => NotImplemented
+      }
+    }
+  }
+
+  def byAccount(account: Long) = Action.async {
+    inquire(actors.users()) { ByAccount(account) } map {
+      case Left(e: Throwable)      => log.error("Error", e); InternalServerError(e.getMessage)
+      case Right(users: Seq[User]) => Ok(Json.toJson(users))
+    }
+  }
 }
