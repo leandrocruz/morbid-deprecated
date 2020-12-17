@@ -178,7 +178,7 @@ class UsersSupervisor (
   def registerSupervisor(op: Option[User]): ActorRef =
     op match {
       case Some(user) if !byId.contains(user.id) =>
-        log.info(s"Creating Supervisor for ${user.email} (token: ${user.password.map(_.token).get})")
+        log.info(s"Creating Supervisor for ${user.email} (token: ${user.password.map(_.token)})")
         val ref = context.actorOf(Props(classOf[SingleUserSupervisor], user, services, tokens, stores), s"user-${user.id}")
         addToCache(user, ref)
       case _ => unknownUser
