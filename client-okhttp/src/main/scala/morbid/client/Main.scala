@@ -1,10 +1,9 @@
 package morbid.client
 
-import morbid.client.domain.{CreateUserRequest, Violation}
+import morbid.client.domain.Violation
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext}
-import scala.util.{Failure, Try}
 
 object Main extends App {
   override def main(args: Array[String]) = {
