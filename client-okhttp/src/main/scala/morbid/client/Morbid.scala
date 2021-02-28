@@ -17,6 +17,7 @@ trait MorbidClient {
   def resetPassword    (request: ResetPasswordRequest)    : Future[Either[Violation, User]]
   def changePassword   (request: ChangePasswordRequest)   : Future[Either[Violation, Unit]]
   def assignPermission (request: AssignPermissionRequest) : Future[Either[Violation, Unit]]
+  def byId             (id: Long)                         : Future[Either[Throwable,User]]
   def byToken          (token: String)                    : Future[Either[Throwable,User]]
   def byEmail          (email: String)                    : Future[Either[Throwable,User]]
   def usersBy          (account: Long)                    : Future[Either[Throwable, Seq[User]]]
@@ -94,6 +95,14 @@ abstract class HttpMorbidClientSupport (
     Future {
       handleError(toUser) {
         getRequest(s"/user/email/${URLEncoder.encode(email, "utf8")}")
+      }
+    }
+  }
+
+  override def byId(id: Long) = {
+    Future {
+      handleError(toUser) {
+        getRequest(s"/user/id/$id")
       }
     }
   }
