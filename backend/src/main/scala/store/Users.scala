@@ -248,6 +248,9 @@ class UsersSupervisor (
     case it @ ChangePasswordRequest(email, _, _) =>
       fw(it, byEmail.get(email), users.byEmail(email))
 
+    case it @ ForcePasswordRequest(email, _) =>
+      fw(it, byEmail.get(email), users.byEmail(email))
+
     case it @ ImpersonateRequest(email, _) =>
       fw(it, byEmail.get(email), users.byEmail(email))
 
@@ -310,6 +313,22 @@ class SingleUserSupervisor (
     passwords create CreatePasswordRequest(user.id, "sha256", replacement.sha256(), token, forceUpdate)
   }
 
+  def setPassword(pwd: String): Future[Either[Violation, Done.type]] = {
+    log.info(s"Set password for ${user.email}")
+
+    def refresh(password: Password) = {
+        user = user.copy(password = Some(password))
+        decommission(None)
+        Done
+    }
+
+    EitherT {
+      createNewPassword(pwd)
+    } map {
+      refresh
+    } value
+  }
+
   def changePassword(old: String, replacement: String): Future[Either[Violation, Done.type]] = {
     log.info(s"Changing password for ${user.email}")
     val pwd = user.password.get
@@ -322,12 +341,7 @@ class SingleUserSupervisor (
 
         if (same)         Left(PasswordAlreadyUsed) .successful()
         else if (!strong) Left(PasswordTooWeak)     .successful()
-        else              EitherT(createNewPassword(replacement)) map {
-          pwd =>
-            /* Ouch! This is ugly */ user = user.copy(password = Some(pwd))
-            decommission(None)
-            Done
-        } value
+        else              setPassword(replacement)
     }
   }
 
@@ -395,6 +409,7 @@ class SingleUserSupervisor (
     case ResetPasswordRequest(email)                => to(sender) { resetPasswordFor(email)          }
     case AssignPermissionRequest(_, permission)     => to(sender) { assignPermission(permission)     }
     case ChangePasswordRequest(_, old, replacement) => to(sender) { changePassword(old, replacement) }
+    case ForcePasswordRequest(_, pwd)               => to(sender) { setPassword(pwd)                 }
     case any                                        => log.error(s"Can't handle $any")
   }
 }
