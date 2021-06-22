@@ -97,6 +97,14 @@ class UserController @Inject()(
     }
   }
 
+  def forcePassword() = Action.async(parse.json) { implicit r =>
+    validateThen[ForcePasswordRequest] { req =>
+      toResult {
+        inquire(actors.users()) { req }
+      }
+    }
+  }
+
   def assignPermission() = Action.async(parse.json) { implicit r =>
     validateThen[AssignPermissionRequest] { req =>
       toResult {
