@@ -76,6 +76,7 @@ case class CreateUserRequest(account: Long, name: String, email: String, `type`:
 case class CreatePasswordRequest(user: Long, method: String, password: String, token: String, forceUpdate: Boolean = false)
 case class ResetPasswordRequest(email: String)
 case class ChangePasswordRequest(email: String, old: String, replacement: String)
+case class ForcePasswordRequest(email: String, password: String)
 case class RefreshUserRequest(user: Long)
 case class AssignPermissionRequest(user: Long, permission: String)
 case class ByAccount(id: Long)
@@ -97,6 +98,7 @@ object json {
   implicit val RefreshUserRequestReader     = Json.reads[RefreshUserRequest]
   implicit val AddPermissionRequestReader   = Json.reads[AssignPermissionRequest]
   implicit val ChangePasswordRequestReader  = Json.reads[ChangePasswordRequest]
+  implicit val ForcePasswordRequestReader   = Json.reads[ForcePasswordRequest]
   implicit val ImpersonateRequestReader     = Json.reads[ImpersonateRequest]
 }
 
