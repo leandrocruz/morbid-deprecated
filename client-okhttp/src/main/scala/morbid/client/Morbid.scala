@@ -21,6 +21,7 @@ trait MorbidClient {
   def byToken          (token: String)                    : Future[Either[Throwable,User]]
   def byEmail          (email: String)                    : Future[Either[Throwable,User]]
   def usersBy          (account: Long)                    : Future[Either[Throwable, Seq[User]]]
+  def deleteUser       (account: Long, user: Long)        : Future[Either[Throwable, Unit]]
 }
 
 abstract class HttpMorbidClientSupport (
@@ -77,6 +78,10 @@ abstract class HttpMorbidClientSupport (
           Left(new Exception(s"Not 200: ${r.code()}"))
         }
     }
+  }
+
+  def deleteRequest(path: String) = {
+    new Request.Builder().url(s"$location$path").delete().build
   }
 
   def getRequest(path: String) = {
@@ -195,6 +200,14 @@ abstract class HttpMorbidClientSupport (
     }
   }
 
+  override def deleteUser(account: Long, user: Long) = {
+    Future {
+      handleError(toUnit) {
+        deleteRequest(s"/account/$account/user/$user")
+      }
+    }
+  }
+
   def discard  (response: String): Either[Violation, Unit]   = Right()
   def toString (response: String): Either[Violation, String] = Right(response)
 
@@ -203,4 +216,5 @@ abstract class HttpMorbidClientSupport (
   def toToken            (response: String) : Either[Violation, Token]
   def toUser             (response: String) : Either[Throwable, User]
   def toUsers            (response: String) : Either[Throwable, Seq[User]]
+  def toUnit             (response: String) : Either[Throwable, Unit]
 }

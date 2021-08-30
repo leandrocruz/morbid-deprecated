@@ -11,10 +11,12 @@ import cats.implicits._
 import domain._
 import domain.collections._
 import domain.tuples._
+import org.apache.commons.lang3.RandomStringUtils
 import org.slf4j.LoggerFactory
 import play.api.Configuration
 import services.{AppServices, TokenGenerator}
 import slick.jdbc.PostgresProfile.api._
+import slick.sql.SqlAction
 import store.violations._
 import xingu.commons.play.akka.XinguActor
 import xingu.commons.utils._
@@ -27,9 +29,10 @@ import scala.util.control.NonFatal
 import scala.util.{Either, Failure}
 
 trait Users extends ObjectStore[User, CreateUserRequest] {
-  def byToken(it: String)      : Future[Option[User]]
-  def byEmail(email: String)   : Future[Option[User]]
-  def byAccount(account: Long) : Future[Either[Throwable, Seq[User]]]
+  def byToken(it: String)               : Future[Option[User]]
+  def byEmail(email: String)            : Future[Option[User]]
+  def byAccount(account: Long)          : Future[Either[Throwable, Seq[User]]]
+  def delete(account: Long, user: Long) : Future[Either[Throwable, Unit]]
 }
 
 object Users {
@@ -124,7 +127,7 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
   }
 
   override def byAccount(account: Long): Future[Either[Throwable, Seq[User]]] = {
-    val query = users.filter(_.account === account)
+    val query = users.filter(it => it.account === account && it.deleted.isEmpty)
     db.run {
       query.result
     } map {
@@ -132,6 +135,22 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
     } map {
       Right(_)
     }
+  }
+
+  override def delete(account: Long, user: Long): Future[Either[Throwable, Unit]] = {
+    def doRemove(stmt: SqlAction[Int, NoStream, Effect]) = {
+      db.run(stmt) map {
+        case 0 => Left(new Exception(s"ZERO items deleted for '${stmt.statements.mkString(",")}'"))
+        case 1 => Right()
+      }
+    }
+
+    val deleted = Timestamp.from(services.clock().instant())
+    val tag = RandomStringUtils.randomAlphanumeric(8) + "-"
+
+    val stmt = sqlu"""UPDATE users SET active = false, deleted = $deleted, name = overlay(name placing $tag from 1), email = overlay(email placing $tag from 1) WHERE account = $account AND id = $user"""
+    doRemove(stmt)
+
   }
 }
 
@@ -257,6 +276,8 @@ class UsersSupervisor (
     case ByAccount(account) =>
       users.byAccount(account) pipeTo sender
 
+    case DeleteUser(account, user) =>
+      users.delete(account, user) pipeTo sender
     case any =>
       log.error(s"Can't handle $any")
   }

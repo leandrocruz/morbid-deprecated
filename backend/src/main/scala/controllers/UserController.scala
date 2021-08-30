@@ -128,4 +128,12 @@ class UserController @Inject()(
       case Right(users: Seq[User]) => Ok(Json.toJson(users))
     }
   }
+
+  def deleteUser(account: Long, user: Long) = Action.async {
+    inquire(actors.users()) { DeleteUser(account, user) } map {
+      case Left(e: Throwable) => log.error("Error", e); InternalServerError(e.getMessage)
+      case Right(_)           => Ok
+
+    }
+  }
 }

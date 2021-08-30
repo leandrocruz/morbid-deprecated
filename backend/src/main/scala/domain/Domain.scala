@@ -80,6 +80,7 @@ case class ForcePasswordRequest(email: String, password: String)
 case class RefreshUserRequest(user: Long)
 case class AssignPermissionRequest(user: Long, permission: String)
 case class ByAccount(id: Long)
+case class DeleteUser(account: Long, user: Long)
 
 object json {
   val format = "yyyyMMdd'T'HHmmss"
