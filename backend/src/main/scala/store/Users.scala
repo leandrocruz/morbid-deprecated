@@ -29,6 +29,7 @@ import scala.util.control.NonFatal
 import scala.util.{Either, Failure, Success}
 
 trait Users extends ObjectStore[User, CreateUserRequest] {
+  def byId(id: Long)                             : Future[Option[User]]
   def byToken(it: String)                        : Future[Option[User]]
   def byEmail(email: String)                     : Future[Option[User]]
   def byAccount(account: Long)                   : Future[Either[Throwable, Seq[User]]]
@@ -311,8 +312,9 @@ class UsersSupervisor (
     case ByAccount(account) =>
       users.byAccount(account) pipeTo sender
 
-    case DeleteUser(account, user) =>
-      users.delete(account, user) pipeTo sender
+    case it @ DeleteUser(_, user) =>
+      fw(it, byId.get(user), users.byId(user))
+
     case any =>
       log.error(s"Can't handle $any")
   }
@@ -454,6 +456,10 @@ class SingleUserSupervisor (
       .map(_.map(update))
 
 
+  def delete(account: Long) = {
+    EitherT(stores.users().delete(account, user.id)).map(_ => decommission(None)).value
+  }
+
   override def receive = {
     case GetById(_)                                 => sender ! user
     case GetByToken(_)                              => sender ! user
@@ -466,6 +472,7 @@ class SingleUserSupervisor (
     case AssignPermissionRequest(_, permission)     => to(sender) { assignPermission(permission)     }
     case ChangePasswordRequest(_, old, replacement) => to(sender) { changePassword(old, replacement) }
     case ForcePasswordRequest(_, pwd)               => to(sender) { setPassword(pwd)                 }
+    case DeleteUser(account, _)                     => to(sender) { delete(account)                  }
     case any                                        => log.error(s"Can't handle $any")
   }
 }
