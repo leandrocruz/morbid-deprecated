@@ -6,17 +6,12 @@ import java.util.Date
 object domain {
 
   case class Violation (reason: String, trace: Option[Throwable] = None)
-
   case class CreateAccountRequest(name: String, `type`: String)
-
   case class CreateUserRequest(account: Long, name: String, email: String, `type`: String, password: Option[String] = None)
-
+  case class UpdateUserRequest(account: Long, id: Long, name: String, email: String, `type`: String)
   case class AuthenticateRequest(email: String, password: String)
-
   case class ChangePasswordRequest(email: String, old: String, replacement: String)
-
   case class ResetPasswordRequest(email: String)
-
   case class AssignPermissionRequest(user: Long, permission: String)
 
   case class Account(

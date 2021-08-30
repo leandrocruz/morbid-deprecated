@@ -16,6 +16,7 @@ object Main extends App {
       override def toUser  (response: String) = toEither(response)
       override def toUsers (response: String) = toEither(response)
       override def toToken (response: String)   = error(response)
+      override def toUnit(response: String)   = toEither(response)
     }
 
     val result = Await.result(client.usersBy(1), 10 seconds)

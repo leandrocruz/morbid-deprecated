@@ -11,10 +11,12 @@ import cats.implicits._
 import domain._
 import domain.collections._
 import domain.tuples._
+import org.apache.commons.lang3.RandomStringUtils
 import org.slf4j.LoggerFactory
 import play.api.Configuration
 import services.{AppServices, TokenGenerator}
 import slick.jdbc.PostgresProfile.api._
+import slick.sql.SqlAction
 import store.violations._
 import xingu.commons.play.akka.XinguActor
 import xingu.commons.utils._
@@ -24,12 +26,14 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.control.NonFatal
-import scala.util.{Either, Failure}
+import scala.util.{Either, Failure, Success}
 
 trait Users extends ObjectStore[User, CreateUserRequest] {
-  def byToken(it: String)      : Future[Option[User]]
-  def byEmail(email: String)   : Future[Option[User]]
-  def byAccount(account: Long) : Future[Either[Throwable, Seq[User]]]
+  def byToken(it: String)                        : Future[Option[User]]
+  def byEmail(email: String)                     : Future[Option[User]]
+  def byAccount(account: Long)                   : Future[Either[Throwable, Seq[User]]]
+  def delete(account: Long, user: Long)          : Future[Either[Throwable, Unit]]
+  def update(user: User, req: UpdateUserRequest) : Future[Either[Throwable, User]]
 }
 
 object Users {
@@ -124,13 +128,46 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
   }
 
   override def byAccount(account: Long): Future[Either[Throwable, Seq[User]]] = {
-    val query = users.filter(_.account === account)
+    val query = users.filter(it => it.account === account && it.deleted.isEmpty)
     db.run {
       query.result
     } map {
       _.map(toUser)
     } map {
       Right(_)
+    }
+  }
+
+  override def delete(account: Long, user: Long): Future[Either[Throwable, Unit]] = {
+    def doRemove(stmt: SqlAction[Int, NoStream, Effect]) = {
+      db.run(stmt) map {
+        case 0 => Left(new Exception(s"ZERO items deleted for '${stmt.statements.mkString(",")}'"))
+        case 1 => Right()
+      }
+    }
+
+    val deleted = Timestamp.from(services.clock().instant())
+    val tag = RandomStringUtils.randomAlphanumeric(8) + "-"
+
+    val stmt = sqlu"""UPDATE users SET active = false, deleted = $deleted, name = overlay(name placing $tag from 1), email = overlay(email placing $tag from 1) WHERE account = $account AND id = $user"""
+    doRemove(stmt)
+  }
+
+  override def update(user: User, req: UpdateUserRequest) = {
+    val q = for {
+      u <- users if u.account === req.account && u.id === req.id
+    } yield {
+      (u.name, u.email, u.`type`)
+    }
+
+    val stmt = q.update((req.name, req.email, req.`type`)).asTry
+    db.run(stmt) map {
+      case Failure(e)   => Left(e)
+      case Success(res) =>
+        res match {
+          case 0 => Left(new Exception("Couldn't update user"))
+          case 1 => Right(user.copy(name = req.name, email = req.email, `type` = req.`type`))
+        }
     }
   }
 }
@@ -196,8 +233,15 @@ class UsersSupervisor (
           .recover { case NonFatal(e) => replyTo ! Failure(e) }
     }
 
+  private def update(req: UpdateUserRequest, same: Option[User]): Future[Either[Throwable, User]] = {
+    same match {
+      case Some(user) if user.account.exists(_.id == req.account) => users.update(user, req)
+      case Some(user) => Left(new Exception(s"Account mismatch (${req.account})")).successful()
+      case None       => Left(new Exception(s"User Not Found (${req.id})")).successful()
+    }
+  }
 
-  def create(req: CreateUserRequest, same: Option[User]): Future[Either[Violation, User]] =
+  private def create(req: CreateUserRequest, same: Option[User]): Future[Either[Violation, User]] = {
     same match {
       case Some(_)  => Left(UniqueViolation(new Exception("User Already Exists"))).successful()
       case None     =>
@@ -209,6 +253,7 @@ class UsersSupervisor (
         } yield u.copy(password = Some(p.copy(password = password, method = "plain")))
         it.value
     }
+  }
 
   override def receive = {
     case DecommissionSupervisor(user, replyTo) =>
@@ -239,6 +284,15 @@ class UsersSupervisor (
         } yield user
       }
 
+    case it: UpdateUserRequest =>
+      to(sender()) {
+        for {
+          same <- users.byId(it.id)
+          user <- update(it, same)
+        } yield user
+      }
+
+
     case it @ ResetPasswordRequest(email) =>
       fw(it, byEmail.get(email), users.byEmail(email))
 
@@ -257,6 +311,8 @@ class UsersSupervisor (
     case ByAccount(account) =>
       users.byAccount(account) pipeTo sender
 
+    case DeleteUser(account, user) =>
+      users.delete(account, user) pipeTo sender
     case any =>
       log.error(s"Can't handle $any")
   }

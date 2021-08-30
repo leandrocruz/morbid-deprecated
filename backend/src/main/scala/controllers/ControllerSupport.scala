@@ -1,6 +1,7 @@
 package controllers
 
 import akka.actor.ActorRef
+import org.apache.commons.lang3.exception.ExceptionUtils
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
 import play.api.mvc.{InjectedController, Request, Result}
@@ -35,6 +36,7 @@ class ControllerSupport (services: AppServices) extends InjectedController with 
   def handle[R](it: Any)(implicit writer: Writes[R]): Result = it match {
     case Right(resource: R)         => Ok(Json.toJson(resource))
     case Left(violation: Violation) => violationToResult(violation)
+    case Left(err: Throwable)       => InternalServerError(ExceptionUtils.getStackTrace(err))
   }
 
   def createResource[RESOURCE, CREATE](actor: ActorRef)(implicit req: Request[JsValue], writer: Writes[RESOURCE], reader: Reads[CREATE]): Future[Result] = {
