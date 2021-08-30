@@ -1,5 +1,10 @@
 # Change Log
 
+## Release v2.2.3
+__LTS ??/2021__
+
+ - Invalidando o acesso de usuário removidos
+
 ## Release v2.2.2
 __LTS 30/08/2021__
 
