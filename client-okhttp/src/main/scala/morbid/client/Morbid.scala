@@ -21,6 +21,8 @@ trait MorbidClient {
   def byToken          (token: String)                    : Future[Either[Throwable,User]]
   def byEmail          (email: String)                    : Future[Either[Throwable,User]]
   def usersBy          (account: Long)                    : Future[Either[Throwable, Seq[User]]]
+  def deleteUser       (account: Long, user: Long)        : Future[Either[Throwable, Unit]]
+  def updateUser       (request: UpdateUserRequest)       : Future[Either[Violation, User]]
 }
 
 abstract class HttpMorbidClientSupport (
@@ -79,16 +81,20 @@ abstract class HttpMorbidClientSupport (
     }
   }
 
+  def deleteRequest(path: String) = {
+    new Request.Builder().url(s"$location$path").delete().build
+  }
+
   def getRequest(path: String) = {
     new Request.Builder().url(s"$location$path").build
   }
 
-  def postRequest(path: String, body: Option[String]) = {
-    body map { it =>
-      new Request.Builder().url(s"$location$path").post(RequestBody.create(it, json)).build
-    } getOrElse {
-      new Request.Builder().url(s"$location$path").build
-    }
+  def postRequest(path: String, body: String) = {
+    new Request.Builder().url(s"$location$path").post(RequestBody.create(body, json)).build
+  }
+
+  def putRequest(path: String, body: String) = {
+    new Request.Builder().url(s"$location$path").put(RequestBody.create(body, json)).build
   }
 
   override def byEmail(email: String) = {
@@ -119,7 +125,7 @@ abstract class HttpMorbidClientSupport (
     val body = s"""{"email":"${escapeJson(r.email)}","password":"${escapeJson(r.password)}"}"""
     Future {
       handleViolation(toToken) {
-        postRequest("/user/login", Some(body))
+        postRequest("/user/login", body)
       }
     }
   }
@@ -128,7 +134,7 @@ abstract class HttpMorbidClientSupport (
     val body = s"""{"name":"${escapeJson(r.name)}","type":"${escapeJson(r.`type`)}"}"""
     Future {
       handleViolation(accountOrViolation) {
-        postRequest("/account", Some(body))
+        postRequest("/account", body)
       }
     }
   }
@@ -137,9 +143,27 @@ abstract class HttpMorbidClientSupport (
     val body = s"""{"email":"${escapeJson(r.email)}"}"""
     Future {
       handleViolation(userOrViolation) {
-        postRequest("/user/password/reset", Some(body))
+        postRequest("/user/password/reset", body)
       }
     }
+  }
+
+  override def updateUser(r: UpdateUserRequest) = {
+    val body =
+      s"""{
+         |"account"  : ${r.account},
+         |"id"       : ${r.id},
+         |"name"     :"${escapeJson(r.name)}",
+         |"email"    :"${escapeJson(r.email)}",
+         |"type"     :"${escapeJson(r.`type`)}"
+         |}""".stripMargin.replaceAll("\n", " ")
+
+    Future {
+      handleViolation(userOrViolation) {
+        putRequest("/user", body)
+      }
+    }
+
   }
 
   override def createUser(r: CreateUserRequest) = {
@@ -153,7 +177,7 @@ abstract class HttpMorbidClientSupport (
 
     Future {
       handleViolation(userOrViolation) {
-        postRequest("/user", Some(body))
+        postRequest("/user", body)
       }
     }
   }
@@ -168,7 +192,7 @@ abstract class HttpMorbidClientSupport (
 
     Future {
       handleViolation(discard) {
-        postRequest("/user/password/change", Some(body))
+        postRequest("/user/password/change", body)
       }
     }
   }
@@ -182,7 +206,7 @@ abstract class HttpMorbidClientSupport (
 
     Future {
       handleViolation(discard) {
-        postRequest("/user/permission/assign", Some(body))
+        postRequest("/user/permission/assign", body)
       }
     }
   }
@@ -195,6 +219,14 @@ abstract class HttpMorbidClientSupport (
     }
   }
 
+  override def deleteUser(account: Long, user: Long) = {
+    Future {
+      handleError(toUnit) {
+        deleteRequest(s"/account/$account/user/$user")
+      }
+    }
+  }
+
   def discard  (response: String): Either[Violation, Unit]   = Right()
   def toString (response: String): Either[Violation, String] = Right(response)
 
@@ -203,4 +235,5 @@ abstract class HttpMorbidClientSupport (
   def toToken            (response: String) : Either[Violation, Token]
   def toUser             (response: String) : Either[Throwable, User]
   def toUsers            (response: String) : Either[Throwable, Seq[User]]
+  def toUnit             (response: String) : Either[Throwable, Unit]
 }

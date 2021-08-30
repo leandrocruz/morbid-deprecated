@@ -27,6 +27,10 @@ class UserController @Inject()(
     createResource[User, CreateUserRequest](actors.users())
   }
 
+  def update() = Action.async(parse.json) { implicit r =>
+    createResource[User, UpdateUserRequest](actors.users())
+  }
+
   def serialize(user: User): JsValue = Json.toJson(user)
   def skip[T](t: T) = JsNull
 
@@ -126,6 +130,14 @@ class UserController @Inject()(
     inquire(actors.users()) { ByAccount(account) } map {
       case Left(e: Throwable)      => log.error("Error", e); InternalServerError(e.getMessage)
       case Right(users: Seq[User]) => Ok(Json.toJson(users))
+    }
+  }
+
+  def deleteUser(account: Long, user: Long) = Action.async {
+    inquire(actors.users()) { DeleteUser(account, user) } map {
+      case Left(e: Throwable) => log.error("Error", e); InternalServerError(e.getMessage)
+      case Right(_)           => Ok
+
     }
   }
 }
