@@ -27,6 +27,10 @@ class UserController @Inject()(
     createResource[User, CreateUserRequest](actors.users())
   }
 
+  def update() = Action.async(parse.json) { implicit r =>
+    createResource[User, UpdateUserRequest](actors.users())
+  }
+
   def serialize(user: User): JsValue = Json.toJson(user)
   def skip[T](t: T) = JsNull
 

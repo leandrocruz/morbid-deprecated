@@ -26,13 +26,14 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.control.NonFatal
-import scala.util.{Either, Failure}
+import scala.util.{Either, Failure, Success}
 
 trait Users extends ObjectStore[User, CreateUserRequest] {
-  def byToken(it: String)               : Future[Option[User]]
-  def byEmail(email: String)            : Future[Option[User]]
-  def byAccount(account: Long)          : Future[Either[Throwable, Seq[User]]]
-  def delete(account: Long, user: Long) : Future[Either[Throwable, Unit]]
+  def byToken(it: String)                        : Future[Option[User]]
+  def byEmail(email: String)                     : Future[Option[User]]
+  def byAccount(account: Long)                   : Future[Either[Throwable, Seq[User]]]
+  def delete(account: Long, user: Long)          : Future[Either[Throwable, Unit]]
+  def update(user: User, req: UpdateUserRequest) : Future[Either[Throwable, User]]
 }
 
 object Users {
@@ -150,7 +151,24 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
 
     val stmt = sqlu"""UPDATE users SET active = false, deleted = $deleted, name = overlay(name placing $tag from 1), email = overlay(email placing $tag from 1) WHERE account = $account AND id = $user"""
     doRemove(stmt)
+  }
 
+  override def update(user: User, req: UpdateUserRequest) = {
+    val q = for {
+      u <- users if u.account === req.account && u.id === req.id
+    } yield {
+      (u.name, u.email, u.`type`)
+    }
+
+    val stmt = q.update((req.name, req.email, req.`type`)).asTry
+    db.run(stmt) map {
+      case Failure(e)   => Left(e)
+      case Success(res) =>
+        res match {
+          case 0 => Left(new Exception("Couldn't update user"))
+          case 1 => Right(user.copy(name = req.name, email = req.email, `type` = req.`type`))
+        }
+    }
   }
 }
 
@@ -215,8 +233,15 @@ class UsersSupervisor (
           .recover { case NonFatal(e) => replyTo ! Failure(e) }
     }
 
+  private def update(req: UpdateUserRequest, same: Option[User]): Future[Either[Throwable, User]] = {
+    same match {
+      case Some(user) if user.account.exists(_.id == req.account) => users.update(user, req)
+      case Some(user) => Left(new Exception(s"Account mismatch (${req.account})")).successful()
+      case None       => Left(new Exception(s"User Not Found (${req.id})")).successful()
+    }
+  }
 
-  def create(req: CreateUserRequest, same: Option[User]): Future[Either[Violation, User]] =
+  private def create(req: CreateUserRequest, same: Option[User]): Future[Either[Violation, User]] = {
     same match {
       case Some(_)  => Left(UniqueViolation(new Exception("User Already Exists"))).successful()
       case None     =>
@@ -228,6 +253,7 @@ class UsersSupervisor (
         } yield u.copy(password = Some(p.copy(password = password, method = "plain")))
         it.value
     }
+  }
 
   override def receive = {
     case DecommissionSupervisor(user, replyTo) =>
@@ -257,6 +283,15 @@ class UsersSupervisor (
           user <- create(it, same)
         } yield user
       }
+
+    case it: UpdateUserRequest =>
+      to(sender()) {
+        for {
+          same <- users.byId(it.id)
+          user <- update(it, same)
+        } yield user
+      }
+
 
     case it @ ResetPasswordRequest(email) =>
       fw(it, byEmail.get(email), users.byEmail(email))
