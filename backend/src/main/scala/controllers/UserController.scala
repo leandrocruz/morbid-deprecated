@@ -24,11 +24,14 @@ class UserController @Inject()(
   val SuccessToken = TypeCase[Success[Token]]
 
   def create() = Action.async(parse.json) { implicit r =>
-    createResource[User, CreateUserRequest](actors.users())
+    createResource[User, CreateUserRequest](actors.users()) { req =>
+      req.copy(email = req.email.toLowerCase) }
   }
 
   def update() = Action.async(parse.json) { implicit r =>
-    createResource[User, UpdateUserRequest](actors.users())
+    createResource[User, UpdateUserRequest](actors.users()) { req =>
+      req.copy(email = req.email.toLowerCase)
+    }
   }
 
   def serialize(user: User): JsValue = Json.toJson(user)
@@ -55,7 +58,7 @@ class UserController @Inject()(
 
   def byEmail(it: String)= Action.async {
     toJson[User](serialize) {
-      inquire(actors.users()) { GetByEmail(it) }
+      inquire(actors.users()) { GetByEmail(it.toLowerCase) }
     }
   }
 
@@ -72,7 +75,7 @@ class UserController @Inject()(
   def login() = Action.async (parse.json) { implicit r =>
     validateThen[AuthenticateRequest] { req =>
       toJson[Token](tk => Json.toJson(tk)) {
-        inquire(actors.users()) { req }
+        inquire(actors.users()) { req.copy(email = req.email.toLowerCase) }
       }
     }
   }
@@ -80,7 +83,7 @@ class UserController @Inject()(
   def resetPassword() = Action.async(parse.json) { implicit r =>
     validateThen[ResetPasswordRequest] { req =>
       toJson[User](serialize) {
-        inquire(actors.users()) { req }
+        inquire(actors.users()) { req.copy(email = req.email.toLowerCase) }
       }
     }
   }
@@ -96,7 +99,7 @@ class UserController @Inject()(
   def changePassword() = Action.async(parse.json) { implicit r =>
     validateThen[ChangePasswordRequest] { req =>
       toResult {
-        inquire(actors.users()) { req }
+        inquire(actors.users()) { req.copy(email = req.email.toLowerCase) }
       }
     }
   }
@@ -104,7 +107,7 @@ class UserController @Inject()(
   def forcePassword() = Action.async(parse.json) { implicit r =>
     validateThen[ForcePasswordRequest] { req =>
       toResult {
-        inquire(actors.users()) { req }
+        inquire(actors.users()) { req.copy(email = req.email.toLowerCase) }
       }
     }
   }

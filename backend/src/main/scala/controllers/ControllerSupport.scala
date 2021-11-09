@@ -39,10 +39,10 @@ class ControllerSupport (services: AppServices) extends InjectedController with 
     case Left(err: Throwable)       => InternalServerError(ExceptionUtils.getStackTrace(err))
   }
 
-  def createResource[RESOURCE, CREATE](actor: ActorRef)(implicit req: Request[JsValue], writer: Writes[RESOURCE], reader: Reads[CREATE]): Future[Result] = {
+  def createResource[RESOURCE, CREATE](actor: ActorRef)(fn: CREATE => CREATE)(implicit req: Request[JsValue], writer: Writes[RESOURCE], reader: Reads[CREATE]): Future[Result] = {
     req.body.validate[CREATE] match {
       case success: JsSuccess[CREATE] =>
-        inquire(actor) { success.get } map handle[RESOURCE] recover {
+        inquire(actor) { fn(success.get) } map handle[RESOURCE] recover {
           case NonFatal(e) => log.error("Error Creating Resource (recover)", e); InternalServerError
         }
       case JsError(err)    => BadRequest("Error Creating Resource: " + JsError.toJson(err)).successful()
