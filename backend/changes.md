@@ -1,5 +1,10 @@
 # Change Log
 
+## Release v2.2.4
+__LTS 09/11/2021__
+
+ - Using email 'toLowerCase' when creating users and testing secrets
+
 ## Release v2.2.3
 __LTS ??/2021__
 
