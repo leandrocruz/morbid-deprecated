@@ -1,5 +1,10 @@
 # Change Log
 
+## Release v2.2.5
+__LTS 09/08/2022__
+
+ - Logging errors with invalid signatures
+
 ## Release v2.2.4
 __LTS 09/11/2021__
 

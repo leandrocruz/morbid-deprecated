@@ -64,7 +64,9 @@ class UserController @Inject()(
 
   def byToken(it: String) = Action.async {
     tokens.verify(it) match {
-      case Failure(e)   => Forbidden("Invalid Signature").successful()
+      case Failure(e)   =>
+        log.error(s"Invalid Signature", e)
+        Forbidden(s"Invalid Signature: ${e.getMessage}").successful()
       case Success(jws) =>
         toJson[User](serialize) {
           inquire(actors.users()) { GetByToken(jws.getBody.getSubject) }
