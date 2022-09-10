@@ -15,6 +15,8 @@ import org.apache.commons.lang3.RandomStringUtils
 import org.slf4j.LoggerFactory
 import play.api.Configuration
 import services.{AppServices, TokenGenerator}
+import slick.jdbc.GetResult
+import slick.jdbc.PositionedResult
 import slick.jdbc.PostgresProfile.api._
 import slick.sql.SqlAction
 import store.violations._
@@ -29,6 +31,7 @@ import scala.util.control.NonFatal
 import scala.util.{Either, Failure, Success}
 
 trait Users extends ObjectStore[User, CreateUserRequest] {
+  def all                                        : Future[Seq[User]]
   def byId(id: Long)                             : Future[Option[User]]
   def byToken(it: String)                        : Future[Option[User]]
   def byEmail(email: String)                     : Future[Option[User]]
@@ -72,6 +75,50 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
   type TheRow = (((UserTable, AccountTable), Rep[Option[SecretTable]]), Rep[Option[PermissionTable]]) // remove warning from intellij
   implicit val ec = services.ec()
 
+  private def readAccount(r: PositionedResult) = {
+    Account(
+      r.nextLong,
+      r.nextDate,
+      r.nextDateOption,
+      r.nextBoolean,
+      r.nextString,
+      r.nextString
+    )
+  }
+
+  private def readUser(r: PositionedResult) = {
+    val id = r.nextLong()
+    r.nextLong() // account_id
+    User(
+      id          = id,
+      account     = None,
+      created     = r.nextDate,
+      deleted     = r.nextDateOption,
+      active      = r.nextBoolean,
+      name        = r.nextString,
+      email       = r.nextString,
+      `type`      = r.nextString,
+      password    = None,
+      permissions = None
+    )
+  }
+
+  private def readPassword(r: PositionedResult) = {
+    r.nextLongOption() map { id =>
+      Password(
+        id        = id,
+        user      = r.nextLong,
+        created   = r.nextDate,
+        deleted   = r.nextDateOption(),
+        method    = r.nextString,
+        password  = r.nextString,
+        token     = r.nextString
+      )
+    }
+  }
+
+  implicit val GetAccountUserPassword = GetResult[(Account, User, Option[Password])](r => (readAccount(r), readUser(r), readPassword(r)))
+
   def latestPassword(row: TheRow) = row._1._2.map(_.id).desc
 
   def selectOne(filter: TheRow => Rep[Boolean]): Future[Option[User]] = {
@@ -88,6 +135,27 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
     }
   }
 
+  override def all: Future[Seq[User]] = {
+    val q =
+      sql"""
+           SELECT
+            a.*, u.*, secrets.*
+           FROM
+            accounts a INNER JOIN users u ON a.id = u.account
+          LEFT JOIN
+            (SELECT DISTINCT ON (user_id) * FROM secrets WHERE deleted IS NULL ORDER BY user_id, created DESC) secrets ON secrets.user_id = u.id
+          WHERE
+            a.active = true and u.active = true and a.deleted IS NULL AND u.deleted IS NULL
+      """.as[(Account, User, Option[Password])]
+
+    db.run(q) map {
+      _.map {
+        case (account, user, password) =>
+          user.copy(account = Some(account), password = password)
+      }
+    }
+  }
+  
   override def byId    (it: Long)   : Future[Option[User]] = selectOne { case (((user, _), _), _)   => user.id    === it }
   override def byEmail (it: String) : Future[Option[User]] = selectOne { case (((user, _), _), _)   => user.email === it }
   override def byToken (it: String) : Future[Option[User]] = selectOne { case ((_, secret), _)      =>

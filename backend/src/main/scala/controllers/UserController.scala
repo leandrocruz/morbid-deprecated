@@ -4,7 +4,7 @@ import domain._
 import domain.json._
 import javax.inject.Inject
 import play.api.libs.json._
-import play.api.mvc.Result
+import play.api.mvc.{AnyContent, Request, Result}
 import services.{AppServices, TokenGenerator}
 import shapeless.TypeCase
 import store.{RootActors, Stores, Violation}
@@ -22,6 +22,8 @@ class UserController @Inject()(
   stores   : Stores) extends ControllerSupport (services) {
 
   val SuccessToken = TypeCase[Success[Token]]
+
+  private val magic = services.conf().get[String]("magic")
 
   def create() = Action.async(parse.json) { implicit r =>
     createResource[User, CreateUserRequest](actors.users()) { req =>
@@ -144,5 +146,18 @@ class UserController @Inject()(
       case Right(_)           => Ok
 
     }
+  }
+
+  private def withMagic(f: Request[AnyContent] => Future[Result])(r: Request[AnyContent]) = {
+    r.queryString.get("magic") match {
+      case Some(values) if values.contains(magic) => f(r)
+      case _ => Forbidden("No Magic").successful()
+    }
+  }
+
+  def getAll() = Action.async {
+    withMagic { _ =>
+      stores.users().all map { users => Json.toJson(users) } map { Ok(_) }
+    } _
   }
 }
