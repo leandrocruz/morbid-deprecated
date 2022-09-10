@@ -88,7 +88,7 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
 
   private def readUser(r: PositionedResult) = {
     val id = r.nextLong()
-    r.nextLong() // account_id
+    //r.nextLong() // account_id
     User(
       id          = id,
       account     = None,
@@ -139,11 +139,13 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
     val q =
       sql"""
            SELECT
-            a.*, u.*, secrets.*
+            a.id, a.created, a.deleted, a.active, a.name, a.type,
+            u.id, u.created, u.deleted, u.active, u.name, u.email, u.type,
+            s.id, s.user_id, s.created, s.deleted, s.method, s.password, s.token
            FROM
             accounts a INNER JOIN users u ON a.id = u.account
           LEFT JOIN
-            (SELECT DISTINCT ON (user_id) * FROM secrets WHERE deleted IS NULL ORDER BY user_id, created DESC) secrets ON secrets.user_id = u.id
+            (SELECT DISTINCT ON (user_id) * FROM secrets WHERE deleted IS NULL ORDER BY user_id, created DESC) s ON s.user_id = u.id
           WHERE
             a.active = true and u.active = true and a.deleted IS NULL AND u.deleted IS NULL
       """.as[(Account, User, Option[Password])]
