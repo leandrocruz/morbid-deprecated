@@ -3,6 +3,7 @@ package controllers
 import domain._
 import domain.json._
 import javax.inject.Inject
+import play.api.libs.Codecs
 import play.api.libs.json._
 import play.api.mvc.Result
 import services.{AppServices, TokenGenerator}
@@ -144,5 +145,19 @@ class UserController @Inject()(
       case Right(_)           => Ok
 
     }
+  }
+
+  def getAll() = Action.async {
+    withMagic { r =>
+      stores.users().all map { users =>
+        Json.toJson(users)
+      } map { json =>
+        val etag = Codecs.md5(Json.stringify(json))
+        r.headers.get(IF_NONE_MATCH) match {
+          case Some(desired) if desired == etag => NotModified
+          case _                                => Ok(json).withHeaders(ETAG -> etag)
+        }
+      }
+    } _
   }
 }
