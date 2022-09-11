@@ -4,7 +4,7 @@ import akka.actor.ActorRef
 import org.apache.commons.lang3.exception.ExceptionUtils
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
-import play.api.mvc.{InjectedController, Request, Result}
+import play.api.mvc.{AnyContent, InjectedController, Request, Result}
 import services.AppServices
 import store.{ObjectStore, Violation}
 import store.violations._
@@ -20,6 +20,8 @@ class ControllerSupport (services: AppServices) extends InjectedController with 
   implicit val ec = services.ec()
   implicit val system = services.actorSystem()
   val log = LoggerFactory.getLogger(getClass)
+
+  private val magic = services.conf().get[String]("magic")
 
   def violationToResult(violation: Violation) = violation match {
     case PasswordMismatch                 =>                             Forbidden            ("PasswordMismatch")
@@ -56,4 +58,12 @@ class ControllerSupport (services: AppServices) extends InjectedController with 
       }
     }
   }
+
+  def withMagic(f: Request[AnyContent] => Future[Result])(r: Request[AnyContent]) = {
+    r.headers.get("X-Morbid-Magic") match {
+      case Some(values) if values.contains(magic) => f(r)
+      case _ => Forbidden("No Magic Header").successful()
+    }
+  }
+
 }

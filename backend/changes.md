@@ -1,5 +1,10 @@
 # Change Log
 
+## Release v2.2.6
+__LTS 10/09/2022__
+
+ - Added /users to return the list of all accounts/users/secrets so that morbid clients can implement aggressive caching
+
 ## Release v2.2.5
 __LTS 09/08/2022__
 
