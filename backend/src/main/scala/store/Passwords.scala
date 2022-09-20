@@ -22,7 +22,7 @@ class DatabasePasswords (services: AppServices, db: Database, tokens: TokenGener
 
   override def create(request: CreatePasswordRequest) : Future[Either[Violation, Password]] = {
 
-    val instant = if(request.forceUpdate) Instant.EPOCH else services.clock().instant()
+    val instant = /* if(request.forceUpdate) Instant.EPOCH else */ services.clock().instant()
     val created = new Timestamp(instant.toEpochMilli)
 
     db.run {

@@ -1,5 +1,10 @@
 # Change Log
 
+## Release v2.2.7
+__LTS 20/09/2022__
+
+ - Always create passwords using the current time (may disable forced updates)
+
 ## Release v2.2.6
 __LTS 10/09/2022__
 
