@@ -8,6 +8,7 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Props, ReceiveTimeout, Timers}
 import akka.pattern.pipe
 import cats.data.EitherT
 import cats.implicits._
+import cats.implicits.catsStdInstancesForFuture
 import domain._
 import domain.collections._
 import domain.tuples._
@@ -473,6 +474,11 @@ class SingleUserSupervisor (
     }
   }
 
+  def deleteOldPassword() = {
+    val passwords = stores.passwords()
+    passwords.deleteByUser(user.id)
+  }
+
   def authenticate(password: String) = {
     if("crash" == password) {
       throw new Exception("crash")
@@ -495,13 +501,18 @@ class SingleUserSupervisor (
   def resetPasswordFor(email: String): Future[Any] = {
     val password = services.secrets().generate(16)
 
-    createNewPassword(password, forceUpdate = true) map {
-      case Right(pwd) =>
-        update(pwd)
-        Right(user.copy(password = Some(pwd.copy(password = password, method = "plain"))))
-
-      case _ => identity()
+    def updatePassword(pwd: Password): Future[Either[Violation, User]] = Future {
+      update(pwd)
+      Right(user.copy(password = Some(pwd.copy(password = password, method = "plain"))))
     }
+
+    val result = for {
+      _        <- EitherT { deleteOldPassword()                             }
+      password <- EitherT { createNewPassword(password, forceUpdate = true) }
+      user     <- EitherT { updatePassword(password)                        }
+    } yield user
+
+    result.value
   }
 
   def decommission(replyTo: Option[ActorRef]) = {
