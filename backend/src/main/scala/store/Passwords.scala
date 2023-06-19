@@ -12,11 +12,15 @@ import slick.jdbc.PostgresProfile.api._
 import scala.concurrent.Future
 import scala.util.control.NonFatal
 
-trait Passwords extends ObjectStore[Password, CreatePasswordRequest] {}
+trait Passwords extends ObjectStore[Password, CreatePasswordRequest] {
+  def deleteByUser(userId: Long): Future[Either[Violation, Int]]
+}
 
 class DatabasePasswords (services: AppServices, db: Database, tokens: TokenGenerator) extends Passwords {
 
   implicit val ec = services.ec()
+
+  private def now: Timestamp = new Timestamp(services.clock().instant().toEpochMilli)
 
   override def byId(id: Long) : Future[Option[Password]] = Future.failed(new Exception("TODO"))
 
@@ -46,6 +50,21 @@ class DatabasePasswords (services: AppServices, db: Database, tokens: TokenGener
         password  = request.password,
         token     = request.token
       ))
+    } recover {
+      case NonFatal(e) => Left(Violations.of(e))
+    }
+  }
+
+  override def deleteByUser(userId: Long): Future[Either[Violation, Int]] = {
+    val query =
+      for {
+        secret <- secrets if secret.user === userId && secret.deleted.isEmpty
+      } yield secret.deleted
+
+    val delete = query.update(Some(now))
+
+    db.run(delete) map {
+      case i           => Right(i)
     } recover {
       case NonFatal(e) => Left(Violations.of(e))
     }
