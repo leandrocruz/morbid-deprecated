@@ -1,9 +1,14 @@
 # Change Log
 
+## Release v2.2.9
+__LTS 26/06/2023__
+
+ - Setting `deleted` of the old password when the password is changed
+
 ## Release v2.2.8
 __LTS 17/05/2023__
 
-- Setting `deleted` of the old password when the password is reset
+ - Setting `deleted` of the old password when the password is reset
 
 ## Release v2.2.7
 __LTS 20/09/2022__
