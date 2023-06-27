@@ -451,11 +451,12 @@ class SingleUserSupervisor (
         Done
     }
 
-    EitherT {
-      createNewPassword(pwd)
-    } map {
-      refresh
-    } value
+    val result = for {
+      _        <- EitherT { deleteOldPassword()    }
+      password <- EitherT { createNewPassword(pwd) }
+    } yield refresh(password)
+
+    result.value
   }
 
   def changePassword(old: String, replacement: String): Future[Either[Violation, Done.type]] = {
