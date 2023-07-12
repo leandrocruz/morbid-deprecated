@@ -1,5 +1,10 @@
 # Change Log
 
+## Release v2.2.10
+__LTS 12/07/2023__
+
+ - Changing the expiration time for tokens to 1 day
+
 ## Release v2.2.9
 __LTS 26/06/2023__
 
