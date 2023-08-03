@@ -195,7 +195,7 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
           permissions = None
       ))
     } recover {
-      case NonFatal(e) => Left(Violations.of(e))
+      case NonFatal(e) => Left(violations.of(e))
     }
   }
 

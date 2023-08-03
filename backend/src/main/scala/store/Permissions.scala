@@ -42,7 +42,7 @@ class DatabasePermissions(services: AppServices, db: Database) extends Permissio
           name      = request.permission
       ))
     } recover {
-      case NonFatal(e) => Left(Violations.of(e))
+      case NonFatal(e) => Left(violations.of(e))
     }
   }
 }
