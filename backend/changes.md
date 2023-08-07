@@ -1,5 +1,7 @@
 # Change Log
 
+ - Added two-factor authentication with e-mail notification
+
 ## Release v2.2.9
 __LTS 26/06/2023__
 

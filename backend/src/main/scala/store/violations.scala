@@ -12,6 +12,7 @@ object violations {
   case object PasswordTooOld      extends Violation
   case object PasswordMismatch    extends Violation
   case object NotImplemented      extends Violation
+  case object TwoFactorMismatch   extends Violation
   case class  UnknownViolation             (t: Throwable) extends Violation
   case class  ForeignKeyViolation          (t: Throwable) extends Violation
   case class  UniqueViolation              (t: Throwable) extends Violation

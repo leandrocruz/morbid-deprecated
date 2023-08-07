@@ -2,8 +2,8 @@ package domain
 
 import java.sql.Timestamp
 import java.util.Date
-
-import play.api.libs.json.Json
+import scala.util.Either
+import play.api.libs.json.{JsString, Json, Writes}
 import play.api.libs.json.Reads.dateReads
 import play.api.libs.json.Writes.dateWrites
 
@@ -45,7 +45,8 @@ case class User(
   email       : String,
   `type`      : String,
   password    : Option[Password],
-  permissions : Option[Seq[Permission]]
+  permissions : Option[Seq[Permission]],
+  twoFactor   : Option[Boolean]
 )
 
 case class Token(
@@ -72,8 +73,8 @@ case class ServerTime(time: Date)
 case class AuthenticateRequest(email: String, password: String)
 case class ImpersonateRequest(email: String, master: String)
 case class CreateAccountRequest(name: String, `type`: String)
-case class CreateUserRequest(account: Long, name: String, email: String, `type`: String, password: Option[String] = None)
-case class UpdateUserRequest(account: Long, id: Long, name: String, email: String, `type`: String)
+case class CreateUserRequest(account: Long, name: String, email: String, `type`: String, password: Option[String] = None, twoFactor: Option[Boolean] = None)
+case class UpdateUserRequest(account: Long, id: Long, name: String, email: String, `type`: String, twoFactor: Option[Boolean] = None)
 case class CreatePasswordRequest(user: Long, method: String, password: String, token: String, forceUpdate: Boolean = false)
 case class ResetPasswordRequest(email: String)
 case class ChangePasswordRequest(email: String, old: String, replacement: String)
@@ -82,34 +83,42 @@ case class RefreshUserRequest(user: Long)
 case class AssignPermissionRequest(user: Long, permission: String)
 case class ByAccount(id: Long)
 case class DeleteUser(account: Long, user: Long)
+case class UpdateTwoFactorRequest(email: String, twoFactor: Boolean)
+case class TwoFactorAuthenticateRequest(email: String, code: String)
+
+sealed trait LoginResult
+case object TwoFactorRequired extends LoginResult
+case class  SuccessLogin(token: Token) extends LoginResult
 
 object json {
   val format = "yyyyMMdd'T'HHmmss"
-  implicit val CustomDateWrites             = dateWrites(format)
-  implicit val CustomDateReads              = dateReads(format)
-  implicit val ServerTimeWriter             = Json.writes[ServerTime]
-  implicit val AccountWriter                = Json.writes[Account]
-  implicit val PasswordWriter               = Json.writes[Password]
-  implicit val PermissionWriter             = Json.writes[Permission]
-  implicit val UserWriter                   = Json.writes[User]
-  implicit val TokenWriter                  = Json.writes[Token]
-  implicit val AuthenticateRequestReader    = Json.reads[AuthenticateRequest]
-  implicit val CreateAccountRequestReader   = Json.reads[CreateAccountRequest]
-  implicit val CreateUserRequestReader      = Json.reads[CreateUserRequest]
-  implicit val ResetPasswordRequestReader   = Json.reads[ResetPasswordRequest]
-  implicit val RefreshUserRequestReader     = Json.reads[RefreshUserRequest]
-  implicit val AddPermissionRequestReader   = Json.reads[AssignPermissionRequest]
-  implicit val ChangePasswordRequestReader  = Json.reads[ChangePasswordRequest]
-  implicit val ForcePasswordRequestReader   = Json.reads[ForcePasswordRequest]
-  implicit val ImpersonateRequestReader     = Json.reads[ImpersonateRequest]
-  implicit val UpdateUserRequestReader      = Json.reads[UpdateUserRequest]
+  implicit val CustomDateWrites                   = dateWrites(format)
+  implicit val CustomDateReads                    = dateReads(format)
+  implicit val ServerTimeWriter                   = Json.writes[ServerTime]
+  implicit val AccountWriter                      = Json.writes[Account]
+  implicit val PasswordWriter                     = Json.writes[Password]
+  implicit val PermissionWriter                   = Json.writes[Permission]
+  implicit val UserWriter                         = Json.writes[User]
+  implicit val TokenWriter                        = Json.writes[Token]
+  implicit val AuthenticateRequestReader          = Json.reads[AuthenticateRequest]
+  implicit val CreateAccountRequestReader         = Json.reads[CreateAccountRequest]
+  implicit val CreateUserRequestReader            = Json.reads[CreateUserRequest]
+  implicit val ResetPasswordRequestReader         = Json.reads[ResetPasswordRequest]
+  implicit val RefreshUserRequestReader           = Json.reads[RefreshUserRequest]
+  implicit val AddPermissionRequestReader         = Json.reads[AssignPermissionRequest]
+  implicit val ChangePasswordRequestReader        = Json.reads[ChangePasswordRequest]
+  implicit val ForcePasswordRequestReader         = Json.reads[ForcePasswordRequest]
+  implicit val ImpersonateRequestReader           = Json.reads[ImpersonateRequest]
+  implicit val UpdateUserRequestReader            = Json.reads[UpdateUserRequest]
+  implicit val UpdateTwoFactorRequestReader       = Json.reads[UpdateTwoFactorRequest]
+  implicit val TwoFactorAuthenticateRequestReader = Json.reads[TwoFactorAuthenticateRequest]
 }
 
 import slick.jdbc.PostgresProfile.api._
 
 object tuples {
   type AccountTuple    = (Long, Timestamp, Option[Timestamp], Boolean, String, String)
-  type UserTuple       = (Long, Long, Timestamp, Option[Timestamp], Boolean, String, String, String)
+  type UserTuple       = (Long, Long, Timestamp, Option[Timestamp], Boolean, String, String, String, Option[Boolean])
   type SecretTuple     = (Long, Long, Timestamp, Option[Timestamp], String, String, String)
   type PermissionTuple = (Long, Long, Timestamp, Option[Timestamp], String)
 
@@ -148,7 +157,7 @@ object tuples {
   }
 
   def toUser(tuple: UserTuple) = tuple match {
-    case (id, _ /* account id */, created, deleted, active, name, email, kind) =>
+    case (id, _ /* account id */, created, deleted, active, name, email, kind, twoFactor) =>
       User(
         id          = id,
         account     = None,
@@ -159,7 +168,8 @@ object tuples {
         email       = email,
         `type`      = kind,
         password    = None,
-        permissions = None)
+        permissions = None,
+        twoFactor   = twoFactor)
   }
 }
 
@@ -174,15 +184,16 @@ class AccountTable(tag: Tag) extends Table[tuples.AccountTuple](tag, "accounts")
 }
 
 class UserTable(tag: Tag) extends Table[tuples.UserTuple](tag, "users") {
-  def id       : Rep[Long]              = column[Long]              ("id", O.PrimaryKey, O.AutoInc)
-  def account  : Rep[Long]              = column[Long]              ("account")
-  def created  : Rep[Timestamp]         = column[Timestamp]         ("created")
-  def deleted  : Rep[Option[Timestamp]] = column[Option[Timestamp]] ("deleted")
-  def active   : Rep[Boolean]           = column[Boolean]           ("active")
-  def name     : Rep[String]            = column[String]            ("name")
-  def email    : Rep[String]            = column[String]            ("email")
-  def `type`   : Rep[String]            = column[String]            ("type")
-  def * = (id, account, created, deleted, active, name, email, `type`)
+  def id        : Rep[Long]              = column[Long]              ("id", O.PrimaryKey, O.AutoInc)
+  def account   : Rep[Long]              = column[Long]              ("account")
+  def created   : Rep[Timestamp]         = column[Timestamp]         ("created")
+  def deleted   : Rep[Option[Timestamp]] = column[Option[Timestamp]] ("deleted")
+  def active    : Rep[Boolean]           = column[Boolean]           ("active")
+  def name      : Rep[String]            = column[String]            ("name")
+  def email     : Rep[String]            = column[String]            ("email")
+  def `type`    : Rep[String]            = column[String]            ("type")
+  def twoFactor : Rep[Option[Boolean]]   = column[Option[Boolean]]   ("two_factor")
+  def * = (id, account, created, deleted, active, name, email, `type`, twoFactor)
 }
 class SecretTable(tag: Tag) extends Table[tuples.SecretTuple](tag, "secrets") {
   def id       : Rep[Long]              = column[Long]              ("id", O.PrimaryKey, O.AutoInc)
