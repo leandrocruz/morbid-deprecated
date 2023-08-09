@@ -25,6 +25,7 @@ class ControllerSupport (services: AppServices) extends InjectedController with 
 
   def violationToResult(violation: Violation) = violation match {
     case PasswordMismatch                 =>                             Forbidden            ("PasswordMismatch")
+    case TwoFactorMismatch                =>                             Forbidden            ("TwoFactorMismatch")
     case PasswordTooOld                   =>                             Unauthorized         ("PasswordTooOld")
     case NoPasswordAvailable              =>                             Unauthorized         ("NoPasswordAvailable")
     case PasswordAlreadyUsed              =>                             PreconditionFailed   ("PasswordAlreadyUsed")

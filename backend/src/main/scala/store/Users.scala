@@ -3,7 +3,6 @@ package store
 import java.sql.Timestamp
 import java.time.temporal.ChronoUnit
 import java.util.Date
-
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, ReceiveTimeout, Timers}
 import akka.pattern.pipe
 import cats.data.EitherT
@@ -15,6 +14,8 @@ import domain.tuples._
 import org.apache.commons.lang3.RandomStringUtils
 import org.slf4j.LoggerFactory
 import play.api.Configuration
+import services.notification.NotificationService
+import services.otp.OTPGenerator
 import services.{AppServices, TokenGenerator}
 import slick.jdbc.GetResult
 import slick.jdbc.PositionedResult
@@ -32,13 +33,14 @@ import scala.util.control.NonFatal
 import scala.util.{Either, Failure, Success}
 
 trait Users extends ObjectStore[User, CreateUserRequest] {
-  def all                                        : Future[Seq[User]]
-  def byId(id: Long)                             : Future[Option[User]]
-  def byToken(it: String)                        : Future[Option[User]]
-  def byEmail(email: String)                     : Future[Option[User]]
-  def byAccount(account: Long)                   : Future[Either[Throwable, Seq[User]]]
-  def delete(account: Long, user: Long)          : Future[Either[Throwable, Unit]]
-  def update(user: User, req: UpdateUserRequest) : Future[Either[Throwable, User]]
+  def all                                             : Future[Seq[User]]
+  def byId(id: Long)                                  : Future[Option[User]]
+  def byToken(it: String)                             : Future[Option[User]]
+  def byEmail(email: String)                          : Future[Option[User]]
+  def byAccount(account: Long)                        : Future[Either[Throwable, Seq[User]]]
+  def delete(account: Long, user: Long)               : Future[Either[Throwable, Unit]]
+  def update(user: User, req: UpdateUserRequest)      : Future[Either[Throwable, User]]
+  def updateTwoFactor(user: User, twoFactor: Boolean) : Future[Either[Throwable, User]]
 }
 
 object Users {
@@ -100,7 +102,8 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
       email       = r.nextString,
       `type`      = r.nextString,
       password    = None,
-      permissions = None
+      permissions = None,
+      twoFactor   = r.nextBooleanOption
     )
   }
 
@@ -178,7 +181,8 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
         true,
         request.name,
         request.email,
-        request.`type`
+        request.`type`,
+        request.twoFactor
       )
     } map { id =>
       Right(
@@ -192,10 +196,11 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
           email       = request.email,
           `type`      = request.`type`,
           password    = None,
-          permissions = None
+          permissions = None,
+          twoFactor   = request.twoFactor
       ))
     } recover {
-      case NonFatal(e) => Left(Violations.of(e))
+      case NonFatal(e) => Left(violations.of(e))
     }
   }
 
@@ -229,16 +234,32 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
     val q = for {
       u <- users if u.account === req.account && u.id === req.id
     } yield {
-      (u.name, u.email, u.`type`)
+      (u.name, u.email, u.`type`, u.twoFactor)
     }
 
-    val stmt = q.update((req.name, req.email, req.`type`)).asTry
+    val stmt = q.update((req.name, req.email, req.`type`, req.twoFactor)).asTry
     db.run(stmt) map {
       case Failure(e)   => Left(e)
       case Success(res) =>
         res match {
           case 0 => Left(new Exception("Couldn't update user"))
-          case 1 => Right(user.copy(name = req.name, email = req.email, `type` = req.`type`))
+          case 1 => Right(user.copy(name = req.name, email = req.email, `type` = req.`type`, twoFactor = req.twoFactor))
+        }
+    }
+  }
+
+  override def updateTwoFactor(user: User, twoFactor: Boolean) = {
+    val q = for {
+      u <- users if u.id === user.id
+    } yield u.twoFactor
+
+    val stmt = q.update(Some(twoFactor)).asTry
+    db.run(stmt) map {
+      case Failure(e) => Left(e)
+      case Success(res) =>
+        res match {
+          case 0 => Left(new Exception("Couldn't update user two factor authentication"))
+          case 1 => Right(user.copy(twoFactor = Some(twoFactor)))
         }
     }
   }
@@ -246,18 +267,23 @@ class DatabaseUsers (services: AppServices, db: Database, tokens: TokenGenerator
 
 object UsersSupervisor {
   def props(
-    services : AppServices,
-    tokens   : TokenGenerator,
-    stores   : Stores) = Props(classOf[UsersSupervisor], services, tokens, stores)
+    services     : AppServices,
+    tokens       : TokenGenerator,
+    otpGenerator : OTPGenerator,
+    notification : NotificationService,
+    stores       : Stores) = Props(classOf[UsersSupervisor], services, tokens, otpGenerator, notification, stores)
 }
 
 case object Refresh
 case class DecommissionSupervisor(user: User, replyTo: Option[ActorRef])
+case object UpdateOTP
 
 class UsersSupervisor (
-  services : AppServices,
-  tokens   : TokenGenerator,
-  stores   : Stores) extends Actor with ActorLogging with XinguActor with Timers {
+  services     : AppServices,
+  tokens       : TokenGenerator,
+  otpGenerator : OTPGenerator,
+  notification : NotificationService,
+  stores       : Stores) extends Actor with ActorLogging with XinguActor with Timers {
 
   implicit val ec = services.ec()
 
@@ -288,7 +314,7 @@ class UsersSupervisor (
     op match {
       case Some(user) if !byId.contains(user.id) =>
         log.info(s"Creating Supervisor for ${user.email} (token: ${user.password.map(_.token)})")
-        val ref = context.actorOf(Props(classOf[SingleUserSupervisor], user, services, tokens, stores), s"user-${user.id}")
+        val ref = context.actorOf(Props(classOf[SingleUserSupervisor], user, services, tokens, otpGenerator, notification, stores), s"user-${user.id}")
         addToCache(user, ref)
       case _ => unknownUser
     }
@@ -380,6 +406,12 @@ class UsersSupervisor (
     case it @ ImpersonateRequest(email, _) =>
       fw(it, byEmail.get(email), users.byEmail(email))
 
+    case it @ TwoFactorAuthenticateRequest(email, _) =>
+      fw(it, byEmail.get(email), users.byEmail(email))
+
+    case it @ UpdateTwoFactorRequest(email, _) =>
+      fw(it, byEmail.get(email), users.byEmail(email))
+
     case ByAccount(account) =>
       users.byAccount(account) pipeTo sender
 
@@ -402,21 +434,26 @@ class UnknownUserSupervisor extends Actor {
 }
 
 class SingleUserSupervisor (
-  var user : User,
-  services : AppServices,
-  tokens   : TokenGenerator,
-  stores   : Stores) extends Actor with ActorLogging with XinguActor {
+  var user     : User,
+  services     : AppServices,
+  tokens       : TokenGenerator,
+  otpGenerator : OTPGenerator,
+  notification : NotificationService,
+  stores       : Stores) extends Actor with ActorLogging with XinguActor with Timers {
 
   import domain.Done
 
-  implicit val ec  = services.ec()
-  val conf         = services.conf().get[Configuration] ("passwords")
-  val pwdExp       = conf.getOptional[Boolean]          ("expire").getOrElse(false)
-  val expiresIn    = Some(conf.get[Duration]            ("tokens.expiresIn"))
-  val issuer       = conf.get[String]                   ("tokens.issuer")
-  val notOlderThan = conf.get[Int]                      ("mustBe.notOlderThan")
-  val daysAgo      = java.time.Duration.of(notOlderThan, ChronoUnit.DAYS)
-  val master       = conf.getOptional[String]("master")
+  implicit val ec      = services.ec()
+  val conf             = services.conf().get[Configuration]   ("passwords")
+  val pwdExp           = conf.getOptional[Boolean]            ("expire").getOrElse(false)
+  val expiresIn        = Some(conf.get[Duration]              ("tokens.expiresIn"))
+  val issuer           = conf.get[String]                     ("tokens.issuer")
+  val notOlderThan     = conf.get[Int]                        ("mustBe.notOlderThan")
+  val daysAgo          = java.time.Duration.of(notOlderThan, ChronoUnit.DAYS)
+  val master           = conf.getOptional[String]("master")
+  val otp              = otpGenerator.generate
+  val twoFactorEnabled = services.conf().getOptional[Boolean] ("twoFactor.enabled").getOrElse(false)
+  val twoFactorTimeout = services.conf().getOptional[FiniteDuration] ("twoFactor.passwordTimeout").getOrElse(5 minutes)
 
   context.setReceiveTimeout(5 minutes)
   //  timers.startPeriodicTimer("refresh", Refresh, 1 seconds)
@@ -481,13 +518,53 @@ class SingleUserSupervisor (
   }
 
   def authenticate(password: String) = {
+
+    def checkAndVerifyTwoFactor(pwd: Password): Future[Either[Violation, LoginResult]] = {
+
+      def check = Future.successful { checkPassword(password)(pwd) }
+
+      def verifyTwoFactor(token: Token): Future[Either[Violation, LoginResult]] = {
+
+        def notify(code: String) = {
+          notification.notifyTwoFactorAuth(user, code, twoFactorTimeout) map {
+            case Left(ex) => Left(UnknownViolation(ex))
+            case Right(_) => Right(())
+          }
+        }
+
+        def startTwoFactorTimer: Future[Either[Violation, Unit]] = {
+          timers.startSingleTimer(UpdateOTP, UpdateOTP, twoFactorTimeout)
+          Future.successful { Right(()) }
+        }
+
+        val isUserTwoFactor = user.twoFactor.getOrElse(false)
+        if (twoFactorEnabled && isUserTwoFactor) {
+          val code = otp.generateCode
+          val result = for {
+            _ <- EitherT { notify(code)        }
+            _ <- EitherT { startTwoFactorTimer }
+          } yield TwoFactorRequired
+          result.value
+        } else {
+          Future.successful { Right(SuccessLogin(token)) }
+        }
+      }
+
+      val result = for {
+        token <- EitherT { check                  }
+        res   <- EitherT { verifyTwoFactor(token) }
+      } yield res
+
+      result.value
+    }
+
     if("crash" == password) {
       throw new Exception("crash")
     } else {
       user.password map {
-        checkPassword(password)
+        checkAndVerifyTwoFactor
       } getOrElse {
-        Left(NoPasswordAvailable)
+        Future.successful { Left(NoPasswordAvailable) }
       }
     }
   }
@@ -497,6 +574,20 @@ class SingleUserSupervisor (
       case `provided` /* stable identifier */ => user.password map { pwd => tokens.createToken(issuer, pwd.token, expiresIn) }
       case _ => None
     }
+  }
+
+  def twoFactorAuthenticate(code: String): Either[Violation, Option[Token]] = {
+    if(otp.verifyCode(code)) {
+      otp.update
+      timers.cancel(UpdateOTP)
+      Right(user.password map { pwd => tokens.createToken(issuer, pwd.token, expiresIn) })
+    } else {
+      Left(TwoFactorMismatch)
+    }
+  }
+
+  def twoFactorUpdate(twoFactor: Boolean) = {
+    stores.users().updateTwoFactor(user, twoFactor).map(_ => decommission(None))
   }
 
   def resetPasswordFor(email: String): Future[Any] = {
@@ -542,14 +633,21 @@ class SingleUserSupervisor (
     EitherT(stores.users().delete(account, user.id)).map(_ => decommission(None)).value
   }
 
+  def updateOTP = {
+    otp.update
+  }
+
   override def receive = {
     case GetById(_)                                 => sender ! user
     case GetByToken(_)                              => sender ! user
     case GetByEmail(_)                              => sender ! user
     case ReceiveTimeout                             => decommission(None)
     case RefreshUserRequest(_)                      => decommission(Some(sender))
-    case AuthenticateRequest(_, password)           => sender ! authenticate(password)
+    case AuthenticateRequest(_, password)           => authenticate(password) pipeTo sender
     case ImpersonateRequest(_, master)              => sender ! impersonate(master)
+    case UpdateOTP                                  => updateOTP
+    case TwoFactorAuthenticateRequest(_, code)      => sender ! twoFactorAuthenticate(code)
+    case UpdateTwoFactorRequest(_, twoFactor)       => to(sender) { twoFactorUpdate(twoFactor)       }
     case ResetPasswordRequest(email)                => to(sender) { resetPasswordFor(email)          }
     case AssignPermissionRequest(_, permission)     => to(sender) { assignPermission(permission)     }
     case ChangePasswordRequest(_, old, replacement) => to(sender) { changePassword(old, replacement) }

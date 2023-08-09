@@ -51,7 +51,7 @@ class DatabasePasswords (services: AppServices, db: Database, tokens: TokenGener
         token     = request.token
       ))
     } recover {
-      case NonFatal(e) => Left(Violations.of(e))
+      case NonFatal(e) => Left(violations.of(e))
     }
   }
 
@@ -66,7 +66,7 @@ class DatabasePasswords (services: AppServices, db: Database, tokens: TokenGener
     db.run(delete) map {
       case i           => Right(i)
     } recover {
-      case NonFatal(e) => Left(Violations.of(e))
+      case NonFatal(e) => Left(violations.of(e))
     }
   }
 }

@@ -62,7 +62,7 @@ class DatabaseAccounts (services: AppServices, db: Database) extends Accounts {
           `type`  = request.`type`
       ))
     } recover {
-      case NonFatal(e) => Left(Violations.of(e))
+      case NonFatal(e) => Left(violations.of(e))
     }
   }
 }

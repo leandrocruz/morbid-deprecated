@@ -77,8 +77,10 @@ class UserController @Inject()(
 
   def login() = Action.async (parse.json) { implicit r =>
     validateThen[AuthenticateRequest] { req =>
-      toJson[Token](tk => Json.toJson(tk)) {
-        inquire(actors.users()) { req.copy(email = req.email.toLowerCase) }
+      inquire(actors.users()) { req.copy(email = req.email.toLowerCase) } map {
+        case Left(v: Violation)         => violationToResult(v)
+        case Right(SuccessLogin(token)) => Ok(Json.toJson(token))
+        case Right(TwoFactorRequired)   => PartialContent("TwoFactorRequired")
       }
     }
   }
@@ -128,6 +130,24 @@ class UserController @Inject()(
       inquire(actors.users()) { req } map {
         case Some(token: Token) => Ok(Json.toJson(token))
         case None => NotImplemented
+      }
+    }
+  }
+
+  def twoFactorUpdate() = Action.async(parse.json) { implicit r =>
+    validateThen[UpdateTwoFactorRequest] { req =>
+      toResult {
+        inquire(actors.users()) { req }
+      }
+    }
+  }
+
+  def twoFactorLogin() = Action.async(parse.json) { implicit r =>
+    validateThen[TwoFactorAuthenticateRequest] { req =>
+      inquire(actors.users()) { req.copy(email = req.email.toLowerCase) } map {
+        case Left(v: Violation)        => violationToResult(v)
+        case Right(Some(token: Token)) => Ok(Json.toJson(token))
+        case Right(None)               => NotImplemented
       }
     }
   }

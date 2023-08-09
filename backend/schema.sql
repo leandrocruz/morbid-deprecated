@@ -14,14 +14,15 @@ CREATE TABLE accounts (
 
 DROP TABLE IF EXISTS users CASCADE;
 CREATE TABLE users (
-    id       SERIAL                               ,
-    account  BIGINT       REFERENCES account (id) ,
-    created  TIMESTAMP    NOT NULL                ,
-    deleted  TIMESTAMP                            ,
-    active   BOOLEAN      NOT NULL DEFAULT true   ,
-    name     VARCHAR(128) NOT NULL                ,
-    email    VARCHAR(64)  NOT NULL UNIQUE         ,
-    type     VARCHAR(256) NOT NULL                ,
+    id          SERIAL                               ,
+    account     BIGINT       REFERENCES account (id) ,
+    created     TIMESTAMP    NOT NULL                ,
+    deleted     TIMESTAMP                            ,
+    active      BOOLEAN      NOT NULL DEFAULT true   ,
+    name        VARCHAR(128) NOT NULL                ,
+    email       VARCHAR(64)  NOT NULL UNIQUE         ,
+    type        VARCHAR(256) NOT NULL                ,
+    two_factor  BOOLEAN      DEFAULT false           ,
     PRIMARY KEY(id)
 );
 
