@@ -26,7 +26,7 @@ class Module(env: Environment, conf: Configuration) extends AbstractModule {
 
     val notificationClass: Class[_ <: NotificationService] = notificationMode match {
       case "email" => classOf[EmailNotificationService]
-      case "log"   => classOf[LogNotificationService]
+      case _       => classOf[LogNotificationService]
     }
     bind(classOf[NotificationService]) .to(notificationClass)
   }

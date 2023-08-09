@@ -21,8 +21,8 @@ object notification {
 
     private implicit val ec = services.ec()
 
-    private val subject = services.conf().get[String]("notification.twoAuth.subject")
-    private val templateId = services.conf().get[String]("notification.twoAuth.template-email")
+    private val subject = services.conf().get[String]("notification.twoFactor.subject")
+    private val templateId = services.conf().get[String]("notification.twoFactor.template-email")
 
     override def notifyTwoFactorAuth(user: User, code: String, timeout: FiniteDuration): Future[Either[Throwable, Unit]] = {
       val data = Map("code" -> code, "email" -> user.email, "timeout" -> s"${timeout.toMinutes}")
