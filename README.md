@@ -1,15 +1,4 @@
-# Morbid
-Simple User Management in Scala
+# Morbid (Deprecated)
 
-# Functionalities
-1. Account Management
-2. User Management
-3. Password Management
-4. Session Management (via jwt tokes)
+This project is not actively developed anymore an has been replaced by [this one](https://github.com/leandrocruz/morbid)
 
-# Setup
-
-## Database
-> docker run --name pg-morbid -e POSTGRES_PASSWORD=morbid -d -p 5433:5432 postgres
-
-## JWT Secret Key
