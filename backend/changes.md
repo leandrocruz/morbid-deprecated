@@ -1,5 +1,10 @@
 # Change Log
 
+## Release v2.2.10
+__LTS 13/08/2023__
+
+ - Setting User.account upon user creation
+
 ## Release v2.2.9
 __LTS 26/06/2023__
 

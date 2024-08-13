@@ -3,10 +3,9 @@ package store
 import java.sql.Timestamp
 import java.time.temporal.ChronoUnit
 import java.util.Date
-
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, ReceiveTimeout, Timers}
 import akka.pattern.pipe
-import cats.data.EitherT
+import cats.data.{EitherT, OptionT}
 import cats.implicits._
 import cats.implicits.catsStdInstancesForFuture
 import domain._
@@ -263,6 +262,7 @@ class UsersSupervisor (
 
   val users     = stores.users()
   val passwords = stores.passwords()
+  val accounts  = stores.accounts()
 
   val byEmail   = mutable.Map[String, ActorRef]()
   val byToken   = mutable.Map[String, ActorRef]()
@@ -314,16 +314,24 @@ class UsersSupervisor (
   }
 
   private def create(req: CreateUserRequest, same: Option[User]): Future[Either[Violation, User]] = {
+
+    def account: Future[Either[Violation, Account]] = {
+      accounts.byId(req.account).map {
+        case Some(acc) => Right(acc)
+        case None      => Left(UnknownViolation(new Exception(s"Can't find account '${req.account}'")))
+      }
+    }
+
     same match {
       case Some(_)  => Left(UniqueViolation(new Exception("User Already Exists"))).successful()
       case None     =>
         val token    = services.rnd().generate(32)
         val password = services.secrets().generate(16)
-        val it = for {
+        (for {
           u <- EitherT(users     create req)
           p <- EitherT(passwords create CreatePasswordRequest(u.id, "sha256", password.sha256(), token, forceUpdate = true))
-        } yield u.copy(password = Some(p.copy(password = password, method = "plain")))
-        it.value
+          a <- EitherT(account)
+        } yield u.copy(password = Some(p.copy(password = password, method = "plain")), account = Some(a))).value
     }
   }
 
