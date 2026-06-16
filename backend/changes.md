@@ -1,5 +1,7 @@
 # Change Log
 
+ - [Leandro] Coluna `accounts.name` aumentada de VARCHAR(64) para VARCHAR(256) em `backend/schema.sql`
+
 ## Release v2.2.10
 __LTS 13/08/2023__
 
