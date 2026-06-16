@@ -7,7 +7,7 @@ CREATE TABLE accounts (
     created  TIMESTAMP    NOT NULL              ,
     deleted  TIMESTAMP                          ,
     active   BOOLEAN      NOT NULL DEFAULT true ,
-    name     VARCHAR(64)  NOT NULL UNIQUE       ,
+    name     VARCHAR(256) NOT NULL UNIQUE       ,
     type     VARCHAR(32)  NOT NULL              ,
     PRIMARY KEY(id)
 );

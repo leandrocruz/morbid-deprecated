@@ -19,4 +19,4 @@ EOF
 chmod +x tmp/run
 
 cd tmp
-docker build -t $name:$version .
+docker build --platform linux/amd64 -t $name:$version .
