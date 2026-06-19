@@ -11,13 +11,16 @@ import slick.jdbc.PostgresProfile.api._
 import scala.concurrent.Future
 import scala.util.control.NonFatal
 
-trait Accounts extends ObjectStore[Account, CreateAccountRequest] {}
+trait Accounts extends ObjectStore[Account, CreateAccountRequest] {
+  def byIdentifier(identifier: String): Future[Option[Account]]
+}
 
 class DatabaseAccounts (services: AppServices, db: Database) extends Accounts {
 
   implicit val ec = services.ec()
 
-  override def byId(id: Long): Future[Option[Account]] = toAccount { collections.accounts.filter(_.id === id) }
+  override def byId        (id: Long)             : Future[Option[Account]] = toAccount { collections.accounts.filter(_.id         === id) }
+  override def byIdentifier(identifier: String)   : Future[Option[Account]] = toAccount { collections.accounts.filter(_.identifier === identifier) }
 
   def toAccount(query: Query[AccountTable, (Long, Timestamp, Option[Timestamp], Boolean, String, String, Option[String]), Seq]) =
     db.run(query.result) map {

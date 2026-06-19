@@ -10,9 +10,15 @@ class AccountController @Inject()(
   services : AppServices,
   stores   : Stores) extends ControllerSupport (services) {
 
-  def byId (it: Long)= Action.async {
+  def byId (it: Long) = Action.async {
     toResult {
       stores.accounts().byId(it)
+    }
+  }
+
+  def byIdentifier(it: String) = Action.async {
+    toResult {
+      stores.accounts().byIdentifier(it)
     }
   }
 
