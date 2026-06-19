@@ -19,17 +19,18 @@ class DatabaseAccounts (services: AppServices, db: Database) extends Accounts {
 
   override def byId(id: Long): Future[Option[Account]] = toAccount { collections.accounts.filter(_.id === id) }
 
-  def toAccount(query: Query[AccountTable, (Long, Timestamp, Option[Timestamp], Boolean, String, String), Seq]) =
+  def toAccount(query: Query[AccountTable, (Long, Timestamp, Option[Timestamp], Boolean, String, String, Option[String]), Seq]) =
     db.run(query.result) map {
       _ map {
-        case (id, created, deleted, active, name, kind) =>
+        case (id, created, deleted, active, name, kind, identifier) =>
           Account(
-            id       = id,
-            created  = new Date(created.getTime),
-            deleted  = deleted.map(it => new Date(it.getTime)),
-            active   = active,
-            name     = name,
-            `type`   = kind
+            id         = id,
+            created    = new Date(created.getTime),
+            deleted    = deleted.map(it => new Date(it.getTime)),
+            active     = active,
+            name       = name,
+            `type`     = kind,
+            identifier = identifier
           )
       }
     } map {
@@ -47,19 +48,21 @@ class DatabaseAccounts (services: AppServices, db: Database) extends Accounts {
         null,
         true,
         request.name,
-        request.`type`
+        request.`type`,
+        request.identifier
       )
     }
 
     result map { id =>
       Right(
         Account(
-          id      = id,
-          created = Date.from(instant),
-          deleted = None,
-          active  = true,
-          name    = request.name,
-          `type`  = request.`type`
+          id         = id,
+          created    = Date.from(instant),
+          deleted    = None,
+          active     = true,
+          name       = request.name,
+          `type`     = request.`type`,
+          identifier = request.identifier
       ))
     } recover {
       case NonFatal(e) => Left(Violations.of(e))

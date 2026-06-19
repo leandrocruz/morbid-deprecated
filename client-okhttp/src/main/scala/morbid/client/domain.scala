@@ -6,7 +6,7 @@ import java.util.Date
 object domain {
 
   case class Violation (reason: String, trace: Option[Throwable] = None)
-  case class CreateAccountRequest(name: String, `type`: String)
+  case class CreateAccountRequest(name: String, `type`: String, identifier: Option[String] = None)
   case class CreateUserRequest(account: Long, name: String, email: String, `type`: String, password: Option[String] = None)
   case class UpdateUserRequest(account: Long, id: Long, name: String, email: String, `type`: String)
   case class AuthenticateRequest(email: String, password: String)
@@ -15,12 +15,13 @@ object domain {
   case class AssignPermissionRequest(user: Long, permission: String)
 
   case class Account(
-    id      : Long,
-    created : Date,
-    deleted : Option[Date],
-    active  : Boolean,
-    name    : String,
-    `type`  : String)
+    id         : Long,
+    created    : Date,
+    deleted    : Option[Date],
+    active     : Boolean,
+    name       : String,
+    `type`     : String,
+    identifier : Option[String] = None)
 
   case class Token(
     token     : String,

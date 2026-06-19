@@ -17,12 +17,13 @@ case class  GetById(id: Long)
 case class  CreateResource[T](request: T)
 
 case class Account(
-  id       : Long,
-  created  : Date,
-  deleted  : Option[Date],
-  active   : Boolean,
-  name     : String,
-  `type`   : String
+  id         : Long,
+  created    : Date,
+  deleted    : Option[Date],
+  active     : Boolean,
+  name       : String,
+  `type`     : String,
+  identifier : Option[String] = None
 )
 
 case class Password(
@@ -71,7 +72,7 @@ class UserWithAccount(
 case class ServerTime(time: Date)
 case class AuthenticateRequest(email: String, password: String)
 case class ImpersonateRequest(email: String, master: String)
-case class CreateAccountRequest(name: String, `type`: String)
+case class CreateAccountRequest(name: String, `type`: String, identifier: Option[String] = None)
 case class CreateUserRequest(account: Long, name: String, email: String, `type`: String, password: Option[String] = None)
 case class UpdateUserRequest(account: Long, id: Long, name: String, email: String, `type`: String)
 case class CreatePasswordRequest(user: Long, method: String, password: String, token: String, forceUpdate: Boolean = false)
@@ -108,7 +109,7 @@ object json {
 import slick.jdbc.PostgresProfile.api._
 
 object tuples {
-  type AccountTuple    = (Long, Timestamp, Option[Timestamp], Boolean, String, String)
+  type AccountTuple    = (Long, Timestamp, Option[Timestamp], Boolean, String, String, Option[String])
   type UserTuple       = (Long, Long, Timestamp, Option[Timestamp], Boolean, String, String, String)
   type SecretTuple     = (Long, Long, Timestamp, Option[Timestamp], String, String, String)
   type PermissionTuple = (Long, Long, Timestamp, Option[Timestamp], String)
@@ -136,14 +137,15 @@ object tuples {
   }
 
   def toAccount(tuple: AccountTuple): Account = tuple match {
-    case (id, created, deleted, active, name, kind) =>
+    case (id, created, deleted, active, name, kind, identifier) =>
       Account(
-        id      = id,
-        created = new Date(created.getTime),
-        deleted = deleted.map(it => new Date(it.getTime)),
-        active  = active,
-        name    = name,
-        `type`  = kind,
+        id         = id,
+        created    = new Date(created.getTime),
+        deleted    = deleted.map(it => new Date(it.getTime)),
+        active     = active,
+        name       = name,
+        `type`     = kind,
+        identifier = identifier,
       )
   }
 
@@ -164,13 +166,14 @@ object tuples {
 }
 
 class AccountTable(tag: Tag) extends Table[tuples.AccountTuple](tag, "accounts") {
-  def id       : Rep[Long]              = column[Long]              ("id", O.PrimaryKey, O.AutoInc)
-  def created  : Rep[Timestamp]         = column[Timestamp]         ("created")
-  def deleted  : Rep[Option[Timestamp]] = column[Option[Timestamp]] ("deleted")
-  def active   : Rep[Boolean]           = column[Boolean]           ("active")
-  def name     : Rep[String]            = column[String]            ("name")
-  def `type`   : Rep[String]            = column[String]            ("type")
-  def * = (id, created, deleted, active, name, `type`)
+  def id         : Rep[Long]              = column[Long]              ("id", O.PrimaryKey, O.AutoInc)
+  def created    : Rep[Timestamp]         = column[Timestamp]         ("created")
+  def deleted    : Rep[Option[Timestamp]] = column[Option[Timestamp]] ("deleted")
+  def active     : Rep[Boolean]           = column[Boolean]           ("active")
+  def name       : Rep[String]            = column[String]            ("name")
+  def `type`     : Rep[String]            = column[String]            ("type")
+  def identifier : Rep[Option[String]]    = column[Option[String]]    ("identifier")
+  def * = (id, created, deleted, active, name, `type`, identifier)
 }
 
 class UserTable(tag: Tag) extends Table[tuples.UserTuple](tag, "users") {
