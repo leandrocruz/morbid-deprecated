@@ -1,5 +1,12 @@
 # Change Log
 
+## Release 2.4.0
+__LTS 10/07/2026__
+
+ - [Leandro] Nova coluna `accounts.identifier` (nullable, `VARCHAR(256)`) para armazenar CPF/CNPJ. Índice único parcial `accounts_identifier_key ON accounts (identifier) WHERE identifier IS NOT NULL` — duas contas só podem compartilhar `identifier` se ambos forem `NULL`. Removida a constraint `UNIQUE` da coluna `accounts.name`: o nome da conta volta a ser apenas rótulo de exibição; a chave de negócio passa a ser `identifier`. Script idempotente em `backend/migrations/2026-06-19-add-account-identifier.sql` (`DROP CONSTRAINT IF EXISTS accounts_name_key` + `ADD COLUMN IF NOT EXISTS identifier` + `CREATE UNIQUE INDEX IF NOT EXISTS`, dentro de `BEGIN/COMMIT`). Propagado por todo o stack: `AccountTuple` ganha `Option[String]` no fim, `Account` e `CreateAccountRequest` ganham `identifier: Option[String]` no backend e no `client-okhttp`, `AccountTable` mapeia a coluna, e `DatabaseAccounts.create` injeta o valor no insert
+ - [Leandro] Espelha a mudança do morbid novo (vide changelog em `/Users/leandro/dev/projects/morbid`). Endpoint `POST /account` aceita `identifier` opcional no body; respostas (`GET /account/...`) incluem o campo
+ - [Leandro] Nova rota `GET /account/identifier/:it` → `AccountController.byIdentifier(it: String)` → `DatabaseAccounts.byIdentifier(identifier: String): Future[Option[Account]]`. Retorna 200 com `Account` JSON quando encontrado, 404 caso contrário (via `toResult` que mapeia `None` → 404). A `Accounts` trait passa a expor `def byIdentifier(identifier: String): Future[Option[Account]]`
+
 ## Release v2.3.0
 __LTS 16/06/2026__
 

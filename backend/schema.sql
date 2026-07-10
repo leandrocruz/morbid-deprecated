@@ -3,14 +3,16 @@
 
 DROP TABLE IF EXISTS accounts CASCADE;
 CREATE TABLE accounts (
-    id       SERIAL                             ,
-    created  TIMESTAMP    NOT NULL              ,
-    deleted  TIMESTAMP                          ,
-    active   BOOLEAN      NOT NULL DEFAULT true ,
-    name     VARCHAR(256) NOT NULL UNIQUE       ,
-    type     VARCHAR(32)  NOT NULL              ,
+    id         SERIAL                             ,
+    created    TIMESTAMP    NOT NULL              ,
+    deleted    TIMESTAMP                          ,
+    active     BOOLEAN      NOT NULL DEFAULT true ,
+    name       VARCHAR(256) NOT NULL              ,
+    type       VARCHAR(32)  NOT NULL              ,
+    identifier VARCHAR(256)                       ,
     PRIMARY KEY(id)
 );
+CREATE UNIQUE INDEX accounts_identifier_key ON accounts (identifier) WHERE identifier IS NOT NULL;
 
 DROP TABLE IF EXISTS users CASCADE;
 CREATE TABLE users (

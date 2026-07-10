@@ -3,6 +3,7 @@ GET    /i/conf                 xingu.commons.play.controllers.InternalController
 GET    /i/stat                 xingu.commons.play.controllers.InternalController.stat()
 POST   /account                controllers.AccountController.create()
 GET    /account/id/:it         controllers.AccountController.byId(it: Long)
+GET    /account/identifier/:it controllers.AccountController.byIdentifier(it: String)
 GET    /account/:id/users      controllers.UserController.byAccount(id: Long)
 DELETE /account/:a/user/:u     controllers.UserController.deleteUser(a: Long, u: Long)
 GET    /users                  controllers.UserController.getAll()
