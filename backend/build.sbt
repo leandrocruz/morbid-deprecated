@@ -2,7 +2,7 @@ import sbt.Keys._
 
 scalaVersion := "2.12.11"
 name         := "morbid-backend"
-version      := "v2.4.0-SNAPSHOT"
+version      := "v2.3.0"
 
 PlayKeys.devSettings := Seq(
   "app.env"     -> "test",
