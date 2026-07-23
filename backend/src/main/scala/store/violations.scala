@@ -1,11 +1,11 @@
 package store
 
 import org.postgresql.util.PSQLException
-import store.violations._
 
 trait Violation
 
-object violations {
+object Violations {
+
   case object NoPasswordAvailable extends Violation
   case object PasswordAlreadyUsed extends Violation
   case object PasswordTooWeak     extends Violation
@@ -16,10 +16,7 @@ object violations {
   case class  ForeignKeyViolation          (t: Throwable) extends Violation
   case class  UniqueViolation              (t: Throwable) extends Violation
   case class  IntegrityConstraintViolation (t: Throwable) extends Violation
-}
 
-
-object Violations {
   /*
    * See: https://www.postgresql.org/docs/9.2/errcodes-appendix.html
    */
