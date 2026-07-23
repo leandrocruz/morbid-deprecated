@@ -6,8 +6,8 @@ import org.slf4j.LoggerFactory
 import play.api.libs.json._
 import play.api.mvc.{AnyContent, InjectedController, Request, Result}
 import services.AppServices
-import store.{ObjectStore, Violation}
-import store.violations._
+import store.{ObjectStore, Violation, Violations}
+import store.Violations._
 import xingu.commons.utils._
 import xingu.commons.play.akka.utils._
 import xingu.commons.play.controllers.XinguController

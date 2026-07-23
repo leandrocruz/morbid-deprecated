@@ -19,7 +19,7 @@ import slick.jdbc.GetResult
 import slick.jdbc.PositionedResult
 import slick.jdbc.PostgresProfile.api._
 import slick.sql.SqlAction
-import store.violations._
+import store.Violations._
 import xingu.commons.play.akka.XinguActor
 import xingu.commons.utils._
 

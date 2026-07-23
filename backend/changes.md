@@ -1,5 +1,10 @@
 # Change Log
 
+## Release 2.4.1
+__LTS 23/07/2026__
+
+ - [Leandro] Corrigindo erro em prod: `java.lang.NoClassDefFoundError: store/Violations$`
+
 ## Release 2.4.0
 __LTS 10/07/2026__
 
